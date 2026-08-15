@@ -1,4 +1,8 @@
-export { opencodeAutoMode, default } from "./plugin.js";
+import { opencodeAutoMode } from "./plugin.js";
+
+export { opencodeAutoMode };
+export default opencodeAutoMode;
+
 export * from "./plugin.js";
 export * from "./config/ConfigManager.js";
 export * from "./rules/RuleEvaluator.js";
