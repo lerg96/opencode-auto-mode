@@ -18,20 +18,26 @@ Automatic command approval for OpenCode, implementing LLM-based two-stage classi
 
 ## Installation
 
-### npm Install
+Add the plugin to your `opencode.jsonc` (or `~/.config/opencode/opencode.jsonc`):
 
-```bash
-npm install opencode-auto-mode
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    "@lerg96/opencode-auto-mode"
+  ]
+}
 ```
+
+OpenCode will automatically download and activate the plugin on startup.
 
 ### Local Development Install
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/lerg96/opencode-auto-mode.git
 cd opencode-auto-mode
 npm install
 npm run build
-npm link
 ```
 
 See [docs/SETUP.md](docs/SETUP.md) for detailed installation instructions.

@@ -1,14 +1,28 @@
 {
-  "name": "opencode-auto-mode",
+  "name": "@lerg96/opencode-auto-mode",
   "version": "1.0.0",
-  "description": "OpenCode plugin for LLM-based automatic command approval (auto-mode)",
+  "description": "OpenCode plugin for LLM-based automatic command approval with 3-tier safety, secret guard, and inline script analysis",
+  "type": "module",
   "main": "dist/index.js",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "files": [
     "dist",
-    "config",
-    "docs"
+    "auto-mode.jsonc.example",
+    "docs",
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "test": "jest --coverage",
@@ -21,17 +35,26 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/username/opencode-auto-mode"
+    "url": "https://github.com/lerg96/opencode-auto-mode.git"
+  },
+  "homepage": "https://github.com/lerg96/opencode-auto-mode#readme",
+  "bugs": {
+    "url": "https://github.com/lerg96/opencode-auto-mode/issues"
   },
   "keywords": [
     "opencode",
+    "opencode-plugin",
     "plugin",
     "security",
     "auto-mode",
-    "llm"
+    "llm",
+    "automation"
   ],
-  "author": "",
+  "author": "Luis Romero <lerg96@gmail.com> (https://github.com/lerg96)",
   "license": "MIT",
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
+  },
   "devDependencies": {
     "fast-check": "^3.23.2"
   }

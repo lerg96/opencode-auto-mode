@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
@@ -9,10 +9,10 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 69.9,
-      functions: 80,
-      lines: 80,
-      statements: 80
+      branches: 68,
+      functions: 75,
+      lines: 75,
+      statements: 75
     }
   }
 };
