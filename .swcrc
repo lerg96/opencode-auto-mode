@@ -1,0 +1,13 @@
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "dynamicImport": true
+    },
+    "target": "es2022",
+    "keepClassNames": true
+  },
+  "module": {
+    "type": "es6"
+  }
+}

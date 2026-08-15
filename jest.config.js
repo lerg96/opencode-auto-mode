@@ -1,5 +1,7 @@
 export default {
-  preset: 'ts-jest',
+  transform: {
+    '^.+\\.tsx?$': ['@swc/jest'],
+  },
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts', '**/*.pbt.ts'],

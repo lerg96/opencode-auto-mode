@@ -2,8 +2,6 @@ import { LLMProviderAbstraction } from '../../../src/classifier/LLMProviderAbstr
 import { CircuitState } from '../../../src/classifier/CircuitBreaker';
 import { DEFAULT_CONFIG } from '../../../src/types/PluginConfig';
 
-jest.mock('node:fetch', () => jest.fn());
-
 describe('LLMProviderAbstraction', () => {
   const mockConfig = {
     ...DEFAULT_CONFIG,
