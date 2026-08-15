@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { parse } from "jsonc-parser";
-import { ConfigManager } from "./config/ConfigManager";
-import { PatternMatcher } from "./rules/PatternMatcher";
-import { RuleEvaluator } from "./rules/RuleEvaluator";
+import { ConfigManager } from "./config/ConfigManager.js";
+import { PatternMatcher } from "./rules/PatternMatcher.js";
+import { RuleEvaluator } from "./rules/RuleEvaluator.js";
 
 const HOME = process.env.USERPROFILE || process.env.HOME || "";
 const LOG_FILE = path.join(HOME, ".config", "opencode", "auto-mode.log");
