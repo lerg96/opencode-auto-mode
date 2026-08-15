@@ -1,0 +1,38 @@
+{
+  "name": "opencode-auto-mode",
+  "version": "1.0.0",
+  "description": "OpenCode plugin for LLM-based automatic command approval (auto-mode)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "config",
+    "docs"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --coverage",
+    "test:unit": "jest tests/unit/",
+    "test:integration": "jest tests/integration/",
+    "test:pbt": "jest tests/property-based/",
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/opencode-auto-mode"
+  },
+  "keywords": [
+    "opencode",
+    "plugin",
+    "security",
+    "auto-mode",
+    "llm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "fast-check": "^3.23.2"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  // LLM Provider Configuration
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "timeout": 5000,
+    "apiKeysRef": "opencode-provider-config"
+  },
+
+  // Deny Mode: auto-retry, ask-user, or both
+  "denyMode": "auto-retry",
+
+  // Escalation Thresholds
+  "escalation": {
+    "consecutive": 3,
+    "total": 20
+  },
+
+  // Trust Boundary Configuration
+  "trustBoundary": {
+    "protectedPaths": ["/etc/", "~/.ssh/", "~/.env"],
+    "protectedCommands": ["sudo", "su", "chmod 777", "iptables"]
+  },
+
+  // Agent Exclusion List (agents that skip classification)
+  "excludedAgents": ["explore", "research"],
+
+  // Fallback Behavior
+  "fallback": {
+    "onTimeout": "ask-user",
+    "onError": "ask-user"
+  },
+
+  // Custom block rules (default rules are loaded automatically)
+  "blockRules": [
+    // Add custom rules here
+    // {
+    //   "id": "BR-CUSTOM-001",
+    //   "type": "pattern",
+    //   "pattern": "your-pattern-here",
+    //   "category": "custom",
+    //   "description": "Custom rule description",
+    //   "severity": "high",
+    //   "enabled": true
+    // }
+  ],
+
+  // Allow exceptions (take precedence over block rules)
+  "allowExceptions": [
+    // Add custom exceptions here
+  ]
+}

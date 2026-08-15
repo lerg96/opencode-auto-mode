@@ -1,0 +1,196 @@
+{
+  // ============================================================================
+  // LLM Provider Configuration
+  // ============================================================================
+  // Controls which LLM API is used for classification decisions.
+  // Supported providers: "anthropic", "openai"
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "timeout": 5000,
+    // Optional: Base URL for custom OpenAI-compatible endpoints (e.g., local models)
+    // "baseUrl": "http://localhost:1234/v1"
+  },
+
+  // ============================================================================
+  // Deny Mode
+  // ============================================================================
+  // Controls what happens when an action is blocked by the classifier.
+  // Options:
+  //   "auto-retry" - Agent is denied and can retry with a modified action
+  //   "ask-user"   - User is prompted for manual approval/denial
+  //   "both"       - Auto-retry until escalation threshold, then ask user
+  "denyMode": "auto-retry",
+
+  // ============================================================================
+  // Escalation Thresholds
+  // ============================================================================
+  // Configure when the system escalates to user intervention.
+  "escalation": {
+    // Consecutive denials before escalation (default: 3)
+    "consecutive": 3,
+    // Total denials across session before escalation (default: 20)
+    "total": 20
+  },
+
+  // ============================================================================
+  // Trust Boundary Configuration
+  // ============================================================================
+  // Define protected paths and commands that are ALWAYS blocked.
+  // Trust boundary rules have the highest precedence and override allow exceptions.
+  "trustBoundary": {
+    // File/directory paths that are protected from access
+    "protectedPaths": ["/etc/", "~/.ssh/", "~/.env"],
+    // Commands that are protected from execution
+    "protectedCommands": ["sudo", "su", "chmod 777", "iptables"]
+  },
+
+  // ============================================================================
+  // Agent Exclusion List
+  // ============================================================================
+  // Agents listed here skip the full classifier evaluation.
+  // Use with caution - these agents will proceed without security checks.
+  "excludedAgents": ["explore", "research"],
+
+  // ============================================================================
+  // Fallback Behavior
+  // ============================================================================
+  // Controls behavior when the LLM API fails (timeout or error).
+  "fallback": {
+    // Behavior on LLM timeout: "ask-user", "allow", or "deny"
+    "onTimeout": "ask-user",
+    // Behavior on LLM error: "ask-user", "allow", or "deny"
+    "onError": "ask-user"
+  },
+
+  // ============================================================================
+  // Custom Block Rules
+  // ============================================================================
+  // Add custom block rules that are merged with the 30 default rules.
+  // Pattern types:
+  //   Simple substring: "rm -rf" (matches if substring found)
+  //   Regex: "regex:rm\\s+-\\s*rf" (uses regex pattern matching)
+  //
+  // Rule fields:
+  //   id          - Unique identifier (e.g., "BR-CUSTOM-001")
+  //   type        - Pattern type: "pattern"
+  //   pattern     - Pattern string (substring or regex: prefix for regex)
+  //   category    - Rule category (e.g., "custom", "security", "destruction")
+  //   description - Human-readable description
+  //   severity    - Rule severity: "critical", "high", "medium", "low"
+  //   enabled     - Whether the rule is active (true/false)
+  //
+  // Example custom block rules:
+  "blockRules": [
+    // Block Python destructive file operations
+    {
+      "id": "BR-CUSTOM-001",
+      "type": "pattern",
+      "pattern": "regex:os\\.remove\\s*\\(",
+      "category": "custom",
+      "description": "Block Python os.remove() calls",
+      "severity": "high",
+      "enabled": true
+    },
+    // Block Python shutil.rmtree
+    {
+      "id": "BR-CUSTOM-002",
+      "type": "pattern",
+      "pattern": "regex:shutil\\.rmtree\\s*\\(",
+      "category": "custom",
+      "description": "Block Python shutil.rmtree() calls",
+      "severity": "critical",
+      "enabled": true
+    },
+    // Block destructive AWS S3 operations
+    {
+      "id": "BR-CUSTOM-003",
+      "type": "pattern",
+      "pattern": "aws\\s+s3\\s+rm\\s+--recursive",
+      "category": "custom",
+      "description": "Block recursive AWS S3 deletion",
+      "severity": "critical",
+      "enabled": true
+    },
+    // Block MongoDB database drops
+    {
+      "id": "BR-CUSTOM-004",
+      "type": "pattern",
+      "pattern": "db\\.dropDatabase\\(\\)",
+      "category": "custom",
+      "description": "Block MongoDB database drop",
+      "severity": "critical",
+      "enabled": true
+    },
+    // Block kubernetes namespace deletion
+    {
+      "id": "BR-CUSTOM-005",
+      "type": "pattern",
+      "pattern": "kubectl\\s+delete\\s+namespace",
+      "category": "custom",
+      "description": "Block kubernetes namespace deletion",
+      "severity": "high",
+      "enabled": true
+    }
+  ],
+
+  // ============================================================================
+  // Custom Allow Exceptions
+  // ============================================================================
+  // Add custom allow exceptions that override matching block rules.
+  // Exception fields:
+  //   id          - Unique identifier (e.g., "AE-CUSTOM-001")
+  //   type        - Pattern type: "pattern"
+  //   pattern     - Pattern string (substring or regex: prefix for regex)
+  //   description - Human-readable description
+  //   enabled     - Whether the exception is active (true/false)
+  //
+  // Example custom allow exceptions:
+
+  // ============================================================================
+  // Soft Rules (LLM-classified instead of blocking)
+  // ============================================================================
+  // Rules listed here never block or ask by themselves: they are logged and the
+  // command goes to the LLM classifier, which inspects the actual operation.
+  // Bundled inline-interpreter rules (python -c / node -e family):
+  //   BR-016 python -c import os, BR-017 subprocess, BR-018 .system(,
+  //   BR-019 .exec(, BR-020 .spawn(, BR-021 .fork(, BR-022 .child_process,
+  //   BR-023 .Popen(
+  "softRules": [
+    "BR-016",
+    "BR-017",
+    "BR-018",
+    "BR-019",
+    "BR-020",
+    "BR-021",
+    "BR-022",
+    "BR-023"
+  ],
+
+  "allowExceptions": [
+    // Allow safe cleanup script
+    {
+      "id": "AE-CUSTOM-001",
+      "type": "pattern",
+      "pattern": "safe-cleanup-script",
+      "description": "Allow safe cleanup script",
+      "enabled": true
+    },
+    // Allow reading environment variable (safe, not exposing)
+    {
+      "id": "AE-CUSTOM-002",
+      "type": "pattern",
+      "pattern": "printenv",
+      "description": "Allow printenv for environment inspection",
+      "enabled": true
+    },
+    // Allow Python file operations on project files
+    {
+      "id": "AE-CUSTOM-003",
+      "type": "pattern",
+      "pattern": "regex:python\\s+.*\\.py\\s+clean",
+      "description": "Allow Python cleanup scripts in project",
+      "enabled": true
+    }
+  ]
+}
