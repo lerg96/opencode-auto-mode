@@ -1,6 +1,6 @@
 {
   "name": "@lerg96/opencode-auto-mode",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "OpenCode plugin for LLM-based automatic command approval with 3-tier safety, secret guard, and inline script analysis",
   "type": "module",
   "main": "dist/index.js",

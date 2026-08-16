@@ -44,9 +44,6 @@ export class LLMProviderAbstraction {
         );
       });
     } catch (error) {
-      if (this.circuitBreaker.getState() === CircuitState.OPEN) {
-        console.warn('[Auto-Mode] Circuit breaker OPEN during Stage 1');
-      }
       throw error;
     }
   }
@@ -73,9 +70,6 @@ export class LLMProviderAbstraction {
         );
       });
     } catch (error) {
-      if (this.circuitBreaker.getState() === CircuitState.OPEN) {
-        console.warn('[Auto-Mode] Circuit breaker OPEN during Stage 2');
-      }
       throw error;
     }
   }

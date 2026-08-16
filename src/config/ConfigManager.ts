@@ -15,18 +15,11 @@ import { BlockRule } from '../types/RuleTypes';
 
 const ERROR_LOGGER_COMPONENT = 'ConfigManager';
 
-function logError(message: string, error?: unknown): void {
-  const safeError = error instanceof Error ? error.message : String(error);
-  console.error(`[${ERROR_LOGGER_COMPONENT}] ${message}: ${safeError}`);
-}
+function logError(_message: string, _error?: unknown): void {}
 
-function logWarning(message: string): void {
-  console.warn(`[${ERROR_LOGGER_COMPONENT}] ${message}`);
-}
+function logWarning(_message: string): void {}
 
-function logInfo(message: string): void {
-  console.info(`[${ERROR_LOGGER_COMPONENT}] ${message}`);
-}
+function logInfo(_message: string): void {}
 
 function loadDefaultBlockRules(): BlockRule[] {
   const rulesPath = path.join(__dirname, 'default-block-rules.jsonc');

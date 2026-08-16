@@ -4,19 +4,22 @@ import { parse } from "jsonc-parser";
 import { ConfigManager } from "./config/ConfigManager.js";
 import { PatternMatcher } from "./rules/PatternMatcher.js";
 import { RuleEvaluator } from "./rules/RuleEvaluator.js";
+import {
+  extractFileFromCommand,
+  isSafeFile,
+  readSafely,
+  isSuspiciousFileContent,
+  buildClassifierPrompt as baseBuildClassifierPrompt,
+  SAFE_FILE_SIZE_BYTES,
+} from "./utils/FileExtraction.js";
+import { version } from "../package.json";
 
 const HOME = process.env.USERPROFILE || process.env.HOME || "";
 const LOG_FILE = path.join(HOME, ".config", "opencode", "auto-mode.log");
 
 function log(msg: string): void {
-  const line = `[AutoMode][${new Date().toISOString()}] ${msg}\n`;
-  try {
-    fs.appendFileSync(LOG_FILE, line);
-  } catch {
-    try {
-      console.error(line.trim());
-    } catch {}
-  }
+  const line = `[AutoMode][v${version}][${new Date().toISOString()}] ${msg}\n`;
+  fs.appendFileSync(LOG_FILE, line);
 }
 
 let configManager: ConfigManager | null = null;
@@ -139,6 +142,8 @@ const SECRET_FILE_PATTERN =
 const SECRET_KEYWORD_PATTERN =
   /(api[_-]?keys?|\bsecrets?\b|\btokens?\b|\bpasswords?\b)/i;
 
+const FILE_REGEX = /(?<=\s)([\w._-]+)["']?(?=\s|$|;|\||&|`|"|')/i;
+
 function isSecretFileAccess(command: string): boolean {
   return SECRET_FILE_PATTERN.test(command);
 }
@@ -146,6 +151,9 @@ function isSecretFileAccess(command: string): boolean {
 function isSecretSensitive(command: string): boolean {
   return SECRET_FILE_PATTERN.test(command) || SECRET_KEYWORD_PATTERN.test(command);
 }
+
+export { extractFileFromCommand, isSafeFile, readSafely, isSuspiciousFileContent };
+const buildClassifierPrompt = baseBuildClassifierPrompt;
 
 function normalizeRules(rules: any[], softRules?: string[]): any[] {
   const soft = new Set(softRules || []);
@@ -175,30 +183,6 @@ function getConfigPath(): string {
 
 function getConfig(): any {
   return configManager ? configManager.getConfig() : {};
-}
-
-function buildClassifierPrompt(command: string): string {
-  return [
-    "You are a security classifier for an AI coding assistant. Decide whether the following shell command is SAFE to execute automatically WITHOUT user confirmation.",
-    "",
-    "Block commands that:",
-    "- Delete/destroy data (rm -rf, drop database, format disk)",
-    "- Change system security (chmod 777, sudo, su, iptables, firewall settings — including ENABLING or DISABLING firewalls via netsh advfirewall / Set-NetFirewall*, user accounts, privileges)",
-    "- Access protected locations (~/.ssh, ~/.env, /etc, credentials)",
-    "- Exfiltrate secrets or data (curl/wget + token/key/credential content)",
-    "- Install/execute arbitrary remote code or malware",
-    "- Modify user accounts, passwords, or privileges",
-    "- Scan networks or hosts for attacks (nmap, nikto, metasploit)",
-    "- Overwrite critical system files",
-    "",
-    "ALLOW commands that are read-only, informational, build/test related, git operations, file listing/reading, or any benign development activity.",
-    "Inline interpreter commands (python -c, node -e, node --eval, bash -c, pwsh -Command, cmd /c) are ALLOWED when they perform READ-ONLY operations: reading files, parsing JSON/text, math, string transformation, listing directories.",
-    "DENY inline interpreters when they write/modify/delete files, spawn or execute other processes, run shell commands, install packages, or change system state.",
-    "",
-    `Command to classify:\n${command}`,
-    "",
-    'Reply with ONLY valid JSON: {"allow": true or false, "reason": "short explanation"}',
-  ].join("\n");
 }
 
 async function callLLM(prompt: string): Promise<string> {
@@ -324,9 +308,17 @@ async function classifyCommand(
   }
 
   try {
-    const text = await callLLMSerialized(buildClassifierPrompt(command));
+    const filePath = extractFileFromCommand(command);
+    let fileContent: string | null = null;
+    if (filePath) {
+      fileContent = readSafely(filePath);
+      if (fileContent && isSuspiciousFileContent(fileContent)) {
+        log(`SUSPICIOUS FILE DETECTED: "${filePath}" — potential security risk, flagging for LLM review`);
+      }
+    }
+    const text = await callLLMSerialized(buildClassifierPrompt(command, filePath, fileContent));
     const result = parseDecision(text);
-    log(`LLM classify: "${command.slice(0, 80)}" -> ${result.decision} (${result.reason})`);
+    log(`LLM classify: "${command.slice(0, 80)}" (file=${filePath || "none"}) -> ${result.decision} (${result.reason})`);
     if (result.decision === "deny") {
       return { decision: "ask", reason: `LLM flagged: ${result.reason}` };
     }
@@ -390,12 +382,11 @@ export const opencodeAutoMode = async (ctx: any): Promise<Record<string, any>> =
 
         const sessionID = input.sessionID || "";
         const result = await classifyCommand(command, sessionID);
-        if (result.decision === "allow") {
-          consecutiveDenials = 0;
-          totalDenials++;
-        } else if (result.decision === "deny") {
+        if (result.decision === "deny") {
           consecutiveDenials++;
           totalDenials++;
+        } else {
+          consecutiveDenials = 0;
         }
         decisions.set(input.callID, result);
         if (decisions.size > 200) {
