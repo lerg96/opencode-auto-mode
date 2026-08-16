@@ -11,7 +11,7 @@ import {
   FallbackConfig,
   TrustBoundaryConfig,
 } from '../types/PluginConfig'
-import { BlockRule } from '../types/RuleTypes'
+import { BlockRule, AllowException } from '../types/RuleTypes'
 
 const ERROR_LOGGER_COMPONENT = 'ConfigManager'
 
@@ -325,6 +325,59 @@ function loadDefaultBlockRules(): BlockRule[] {
   ]
 }
 
+function loadDefaultAllowExceptions(): AllowException[] {
+  const rulesPath = path.join(__dirname, 'default-block-rules.jsonc')
+  try {
+    if (fs.existsSync(rulesPath)) {
+      const content = fs.readFileSync(rulesPath, 'utf-8')
+      const errors: any[] = []
+      const result = parse(content, errors)
+      if (errors.length > 0) {
+        logWarning(
+          'Errors parsing default allow exceptions, using bundled defaults'
+        )
+      } else if (Array.isArray(result)) {
+        const filtered = result.filter((item): item is AllowException => {
+          return (
+            item !== null &&
+            typeof item === 'object' &&
+            'id' in item &&
+            'type' in item &&
+            'pattern' in item &&
+            'enabled' in item &&
+            'description' in item &&
+            !('category' in item) &&
+            !('severity' in item)
+          )
+        })
+        if (filtered.length > 0) {
+          return filtered
+        }
+      }
+    }
+  } catch (err) {
+    logWarning(
+      `Could not load default allow exceptions: ${(err as Error)?.message}`
+    )
+  }
+  return [
+    {
+      id: 'AE-DEFAULT-001',
+      type: 'pattern',
+      pattern: 'openssl\\s+version',
+      description: 'Allow checking OpenSSL version',
+      enabled: true,
+    },
+    {
+      id: 'AE-DEFAULT-002',
+      type: 'pattern',
+      pattern: 'docker\\s+ps',
+      description: 'Allow listing running containers',
+      enabled: true,
+    },
+  ]
+}
+
 export class ConfigManager {
   private config: PluginConfig
   private configPath: string
@@ -347,7 +400,9 @@ export class ConfigManager {
         logWarning(`Config file not found at ${configPath}, using defaults`)
         const defaultConfig = { ...DEFAULT_CONFIG }
         const defaultRules = loadDefaultBlockRules()
+        const defaultExceptions = loadDefaultAllowExceptions()
         defaultConfig.blockRules = defaultRules
+        defaultConfig.allowExceptions = defaultExceptions
         return defaultConfig
       }
 
@@ -375,7 +430,9 @@ export class ConfigManager {
         this.rawLlmConfig = undefined
         const defaultConfig = { ...DEFAULT_CONFIG }
         const defaultRules = loadDefaultBlockRules()
+        const defaultExceptions = loadDefaultAllowExceptions()
         defaultConfig.blockRules = defaultRules
+        defaultConfig.allowExceptions = defaultExceptions
         return defaultConfig
       }
 
@@ -383,22 +440,32 @@ export class ConfigManager {
         logWarning('Missing required config fields, using defaults')
         const merged = applyDefaults(parsed)
         const defaultRules = loadDefaultBlockRules()
+        const defaultExceptions = loadDefaultAllowExceptions()
         merged.blockRules = defaultRules.concat(
           merged.blockRules as BlockRule[]
+        )
+        merged.allowExceptions = defaultExceptions.concat(
+          merged.allowExceptions as AllowException[]
         )
         return merged
       }
 
       const merged = applyDefaults(parsed)
       const defaultRules = loadDefaultBlockRules()
+      const defaultExceptions = loadDefaultAllowExceptions()
       merged.blockRules = defaultRules.concat(merged.blockRules as BlockRule[])
+      merged.allowExceptions = defaultExceptions.concat(
+        merged.allowExceptions as AllowException[]
+      )
       logInfo('Configuration loaded successfully')
       return merged
     } catch (error) {
       logError('Error loading config file', error)
       const defaultConfig = { ...DEFAULT_CONFIG }
       const defaultRules = loadDefaultBlockRules()
+      const defaultExceptions = loadDefaultAllowExceptions()
       defaultConfig.blockRules = defaultRules
+      defaultConfig.allowExceptions = defaultExceptions
       return defaultConfig
     }
   }

@@ -251,7 +251,8 @@ async function callLLM(prompt: string): Promise<string> {
   }
 
   const model = llm.model
-  const fallbackModel = rawLlm.fallbackModel as string
+  const fallbackModel =
+    typeof rawLlm.fallbackModel === 'string' ? rawLlm.fallbackModel : ''
   return callLLMWithModelFallback(model, fallbackModel, prompt)
 }
 
@@ -268,10 +269,8 @@ export function resetLLMQueue(): void {
 
 function parseDecision(text: string): { decision: string; reason: string } {
   try {
-    const cleaned = text
-      .replace(/```json/gi, '')
-      .replace(/```/g, '')
-      .trim()
+    // Strip all code fence patterns: ```json ... ```, ```python ... ```, ``` ... ```
+    const cleaned = text.replace(/```\w*[\s\S]*?```/g, '').trim()
     const json = JSON.parse(cleaned)
     if (typeof json.allow === 'boolean') {
       return {
@@ -345,6 +344,11 @@ async function classifyCommand(
     )
     return { decision: 'allow', reason: 'Allowed by exception' }
   }
+  if (ruleResult.evaluation === 'uncertain') {
+    log(
+      `RULES uncertain: "${command.slice(0, 80)}" — ${ruleResult.matchedException || ruleResult.matchedRule || 'no match'} — proceeding to LLM classification`
+    )
+  }
 
   if (isSecretFileAccess(command)) {
     log(`SECRET-GUARD file: "${command.slice(0, 80)}"`)
@@ -386,6 +390,9 @@ async function classifyCommand(
       `LLM classify: "${command.slice(0, 80)}" (file=${filePath || 'none'}) -> ${result.decision} (${result.reason})`
     )
     if (result.decision === 'deny') {
+      // Track LLM denials toward escalation threshold
+      consecutiveDenials++
+      totalDenials++
       return { decision: 'ask', reason: `LLM flagged: ${result.reason}` }
     }
     return result
