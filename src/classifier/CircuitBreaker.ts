@@ -10,6 +10,7 @@ export class CircuitBreaker {
   private readonly failureThreshold: number
   private readonly recoveryTimeout: number
   private lastFailureTime: number | null
+  private halfOpenInProgress: boolean = false
 
   constructor(failureThreshold?: number, recoveryTimeoutMs?: number) {
     this.failureThreshold = failureThreshold || 3
@@ -24,10 +25,18 @@ export class CircuitBreaker {
         this.lastFailureTime &&
         Date.now() - this.lastFailureTime > this.recoveryTimeout
       ) {
+        if (this.halfOpenInProgress) {
+          throw new Error(
+            'Circuit breaker is HALF_OPEN - probe already in progress'
+          )
+        }
+        this.halfOpenInProgress = true
         this.state = CircuitState.HALF_OPEN
       } else {
         throw new Error('Circuit breaker is OPEN - LLM API unavailable')
       }
+    } else if (this.state === CircuitState.HALF_OPEN && this.halfOpenInProgress) {
+      throw new Error('Circuit breaker is HALF_OPEN - probe already in progress')
     }
 
     try {
@@ -35,6 +44,7 @@ export class CircuitBreaker {
       this.onSuccess()
       return result
     } catch (error) {
+      this.halfOpenInProgress = false
       const justOpened = this.onFailure()
       if (justOpened) {
         const originalMessage =
@@ -48,6 +58,7 @@ export class CircuitBreaker {
   }
 
   private onSuccess(): void {
+    this.halfOpenInProgress = false
     this.failureCount = 0
     this.state = CircuitState.CLOSED
   }

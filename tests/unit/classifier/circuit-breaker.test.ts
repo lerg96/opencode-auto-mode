@@ -130,4 +130,94 @@ describe('CircuitBreaker', () => {
       expect(cb.getFailureCount()).toBe(0)
     })
   })
+
+  describe('half-open concurrent protection', () => {
+    it('should reject subsequent requests when a probe is already in progress in HALF_OPEN', async () => {
+      const cb = new CircuitBreaker(1, 50)
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          throw new Error('fail')
+        })
+      ).rejects.toThrow('fail')
+
+      expect(cb.getState()).toBe(CircuitState.OPEN)
+
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      const firstCall = cb.withCircuitBreaker(async () => {
+        await new Promise((r) => setTimeout(r, 200))
+        return 'success'
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          return 'should not reach'
+        })
+      ).rejects.toThrow('HALF_OPEN')
+
+      const result = await firstCall
+      expect(result).toBe('success')
+      expect(cb.getState()).toBe(CircuitState.CLOSED)
+    })
+
+    it('should reject requests when second probe fails in HALF_OPEN', async () => {
+      const cb = new CircuitBreaker(1, 50)
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          throw new Error('fail')
+        })
+      ).rejects.toThrow('fail')
+
+      expect(cb.getState()).toBe(CircuitState.OPEN)
+
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      const firstCall = cb.withCircuitBreaker(async () => {
+        await new Promise((r) => setTimeout(r, 200))
+        throw new Error('probe failed')
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          return 'should not reach'
+        })
+      ).rejects.toThrow('HALF_OPEN')
+
+      await expect(firstCall).rejects.toThrow('OPEN')
+      expect(cb.getState()).toBe(CircuitState.OPEN)
+    })
+
+    it('should allow new requests after recovery from CLOSED state', async () => {
+      const cb = new CircuitBreaker(1, 50)
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          throw new Error('fail')
+        })
+      ).rejects.toThrow('fail')
+
+      expect(cb.getState()).toBe(CircuitState.OPEN)
+
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      await cb.withCircuitBreaker(async () => {
+        return 'recovered'
+      })
+
+      expect(cb.getState()).toBe(CircuitState.CLOSED)
+      expect(cb.getFailureCount()).toBe(0)
+
+      await expect(
+        cb.withCircuitBreaker(async () => {
+          return 'still works'
+        })
+      ).resolves.toBe('still works')
+    })
+  })
 })
