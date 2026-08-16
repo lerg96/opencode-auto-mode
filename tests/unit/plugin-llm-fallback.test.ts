@@ -191,9 +191,9 @@ describe('LLM Fallback (LlmClient)', () => {
   })
 
   describe('fallback on timeouts', () => {
-    it('should retry on AbortError', async () => {
+    it('should retry on AbortError with timeout message', async () => {
       const fetchMock = jest.fn()
-      const abortError = new Error('The operation was aborted')
+      const abortError = new Error('The operation timed out')
       abortError.name = 'AbortError'
       fetchMock.mockRejectedValueOnce(abortError)
       fetchMock.mockResolvedValueOnce(mockFetchResponse(true, 200, 'fallback'))
@@ -213,23 +213,25 @@ describe('LLM Fallback (LlmClient)', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
 
-    it('should retry on network error', async () => {
+    it('should not retry on AbortError without timeout message', async () => {
       const fetchMock = jest.fn()
-      fetchMock.mockRejectedValueOnce(new Error('Network error ECONNREFUSED'))
-      fetchMock.mockResolvedValueOnce(mockFetchResponse(true, 200, 'fallback'))
+      const abortError = new Error('The operation was aborted')
+      abortError.name = 'AbortError'
+      fetchMock.mockRejectedValueOnce(abortError)
 
-      const result = await callLlmWithFallback({
-        baseUrl: 'http://test.local/v1',
-        apiKey: 'key',
-        model: 'primary',
-        fallbackModel: 'fallback',
-        prompt: 'prompt',
-        timeoutMs: 5000,
-        fetchImpl: fetchMock as any,
-      })
+      await expect(
+        callLlmWithFallback({
+          baseUrl: 'http://test.local/v1',
+          apiKey: 'key',
+          model: 'primary',
+          fallbackModel: 'fallback',
+          prompt: 'prompt',
+          timeoutMs: 5000,
+          fetchImpl: fetchMock as any,
+        })
+      ).rejects.toThrow('The operation was aborted')
 
-      expect(result.content).toBe('response from fallback')
-      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
     })
   })
 
