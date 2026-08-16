@@ -208,7 +208,10 @@ async function callLLM(prompt: string): Promise<string> {
   const model = llm.model || "qwen/qwen3.5-9b";
   const timeoutMs = llm.timeout || 8000;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs > 0) {
+    timer = setTimeout(() => controller.abort(), timeoutMs);
+  }
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",

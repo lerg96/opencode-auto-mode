@@ -469,8 +469,8 @@ export class ConfigManager {
       errors.push('llm.model: must be a non-empty string');
     }
 
-    if (typeof llm.timeout !== 'number' || llm.timeout <= 0) {
-      errors.push('llm.timeout: must be a positive number');
+    if (typeof llm.timeout !== 'number' || (llm.timeout <= 0 && llm.timeout !== -1)) {
+      errors.push('llm.timeout: must be a positive number or -1 for no timeout');
     }
 
     const validDenyModes = ['auto-retry', 'ask-user', 'both'];

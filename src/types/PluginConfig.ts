@@ -5,6 +5,7 @@ export type FallbackAction = 'ask-user' | 'allow' | 'deny';
 export interface LLMProviderConfig {
   provider: LLMProviderType;
   model: string;
+  /** Timeout in milliseconds for LLM API calls. Use -1 for no timeout (infinite). */
   timeout: number;
   apiKeysRef: 'opencode-provider-config';
 }
@@ -38,7 +39,7 @@ export interface PluginConfig {
 export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   provider: 'anthropic',
   model: 'claude-sonnet-4-20250514',
-  timeout: 5000,
+  timeout: 5000, // -1 for no timeout (infinite)
   apiKeysRef: 'opencode-provider-config',
 };
 

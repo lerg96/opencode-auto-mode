@@ -9,13 +9,17 @@ export class TimeoutManager {
 
   createStage1AbortController(): AbortController {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), this.stage1Timeout);
+    if (this.stage1Timeout > 0) {
+      setTimeout(() => controller.abort(), this.stage1Timeout);
+    }
     return controller;
   }
 
   createStage2AbortController(): AbortController {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), this.stage2Timeout);
+    if (this.stage2Timeout > 0) {
+      setTimeout(() => controller.abort(), this.stage2Timeout);
+    }
     return controller;
   }
 

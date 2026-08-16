@@ -98,9 +98,13 @@ export class LLMProviderAbstraction {
 
   private async callAnthropic(prompt: string, stage: 'stage1' | 'stage2', signal?: AbortSignal): Promise<unknown> {
     const controller = signal ? { signal } : new AbortController();
-    const timeoutId = setTimeout(() => {
-      if (!signal) (controller as AbortController).abort();
-    }, 10000);
+    const timeout = this.config.llm.timeout;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (timeout > 0) {
+      timeoutId = setTimeout(() => {
+        if (!signal) (controller as AbortController).abort();
+      }, timeout);
+    }
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -134,9 +138,13 @@ export class LLMProviderAbstraction {
 
   private callOpenAI(prompt: string, stage: 'stage1' | 'stage2', signal?: AbortSignal): Promise<unknown> {
     const controller = signal ? { signal } : new AbortController();
-    const timeoutId = setTimeout(() => {
-      if (!signal) (controller as AbortController).abort();
-    }, 10000);
+    const timeout = this.config.llm.timeout;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (timeout > 0) {
+      timeoutId = setTimeout(() => {
+        if (!signal) (controller as AbortController).abort();
+      }, timeout);
+    }
 
     const promise = fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -167,9 +175,13 @@ export class LLMProviderAbstraction {
 
   private callLocal(prompt: string, stage: 'stage1' | 'stage2', signal?: AbortSignal): Promise<unknown> {
     const controller = signal ? { signal } : new AbortController();
-    const timeoutId = setTimeout(() => {
-      if (!signal) (controller as AbortController).abort();
-    }, 10000);
+    const timeout = this.config.llm.timeout;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (timeout > 0) {
+      timeoutId = setTimeout(() => {
+        if (!signal) (controller as AbortController).abort();
+      }, timeout);
+    }
 
     const promise = fetch('http://localhost:11434/api/generate', {
       method: 'POST',
