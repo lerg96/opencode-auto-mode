@@ -9,7 +9,11 @@
     "model": "claude-sonnet-4-20250514",
     "timeout": 5000,
     // Optional: Base URL for custom OpenAI-compatible endpoints (e.g., local models)
-    // "baseUrl": "http://localhost:1234/v1"
+    // "baseUrl": "http://localhost:1234/v1",
+    // Fallback model: If the primary model fails (5xx, 429 rate limit, timeout),
+    // automatically retry with this model. Use the same base URL/API key as the main model.
+    // Leave empty or unset to disable fallback retry.
+    // "fallbackModel": "qwen3.5-9b"
   },
 
   // ============================================================================
@@ -55,11 +59,11 @@
   // ============================================================================
   // Fallback Behavior
   // ============================================================================
-  // Controls behavior when the LLM API fails (timeout or error).
+  // Controls behavior when the LLM API fails (timeout or error) and no fallback model succeeds.
   "fallback": {
-    // Behavior on LLM timeout: "ask-user", "allow", or "deny"
+    // Behavior on LLM timeout (after fallback attempt): "ask-user", "allow", or "deny"
     "onTimeout": "ask-user",
-    // Behavior on LLM error: "ask-user", "allow", or "deny"
+    // Behavior on LLM error (after fallback attempt): "ask-user", "allow", or "deny"
     "onError": "ask-user"
   },
 

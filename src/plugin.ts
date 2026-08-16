@@ -3,6 +3,7 @@ import * as path from 'node:path'
 import { parse } from 'jsonc-parser'
 import { ConfigManager } from './config/ConfigManager.js'
 import { PatternMatcher } from './rules/PatternMatcher.js'
+import { callLlmWithFallback } from './LlmClient.js'
 import { RuleEvaluator } from './rules/RuleEvaluator.js'
 import {
   extractFileFromCommand,
@@ -165,6 +166,8 @@ export {
   readSafely,
   isSuspiciousFileContent,
 }
+
+export { callLlmWithFallback } from './LlmClient.js'
 const buildClassifierPrompt = baseBuildClassifierPrompt
 
 function normalizeRules(rules: any[], softRules?: string[]): any[] {
@@ -197,41 +200,59 @@ function getConfig(): any {
   return configManager ? configManager.getConfig() : {}
 }
 
-async function callLLM(prompt: string): Promise<string> {
+async function callLLMWithModelFallback(
+  model: string,
+  fallbackModel: string,
+  prompt: string
+): Promise<string> {
   const llm = getConfig().llm || {}
   const baseUrl = llm.baseUrl || 'http://localhost:18780/v1'
   const apiKey = llm.apiKey || ''
-  const model = llm.model || 'qwen/qwen3.5-9b'
   const timeoutMs = llm.timeout || 8000
-  const controller = new AbortController()
-  let timer: ReturnType<typeof setTimeout> | undefined
-  if (timeoutMs > 0) {
-    timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  const result = await callLlmWithFallback({
+    baseUrl,
+    apiKey,
+    model,
+    fallbackModel,
+    prompt,
+    timeoutMs,
+  })
+  if (result.usedFallback) {
+    log(`LLM used fallback model: ${fallbackModel}`)
   }
-  try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0,
-        stream: false,
-      }),
-      signal: controller.signal,
+  return result.content
+}
+
+async function callLLM(prompt: string): Promise<string> {
+  const llm = getConfig().llm || {}
+  const rawLlm = configManager?.getRawLlmConfig()
+
+  const hasModelConfigured =
+    typeof rawLlm?.model === 'string' && rawLlm.model.length > 0
+  const hasFallbackConfigured =
+    typeof rawLlm?.fallbackModel === 'string' && rawLlm.fallbackModel.length > 0
+
+  if (!hasModelConfigured) {
+    log('LLM model not configured in user config, skipping LLM classification')
+    throw new Error('LLM model not configured')
+  }
+  if (!hasFallbackConfigured) {
+    const model = llm.model
+    const result = await callLlmWithFallback({
+      baseUrl: llm.baseUrl || 'http://localhost:18780/v1',
+      apiKey: llm.apiKey || '',
+      model,
+      fallbackModel: '',
+      prompt,
+      timeoutMs: llm.timeout || 8000,
     })
-    if (!res.ok) {
-      throw new Error(`LLM API error: ${res.status} ${res.statusText}`)
-    }
-    const data: any = await res.json()
-    return data?.choices?.[0]?.message?.content || ''
-  } finally {
-    clearTimeout(timer)
+    return result.content
   }
+
+  const model = llm.model
+  const fallbackModel = rawLlm.fallbackModel as string
+  return callLLMWithModelFallback(model, fallbackModel, prompt)
 }
 
 let llmQueue: Promise<any> = Promise.resolve()
@@ -239,6 +260,10 @@ function callLLMSerialized(prompt: string): Promise<string> {
   const task = llmQueue.then(() => callLLM(prompt))
   llmQueue = task.catch(() => {})
   return task
+}
+
+export function resetLLMQueue(): void {
+  llmQueue = Promise.resolve()
 }
 
 function parseDecision(text: string): { decision: string; reason: string } {
@@ -332,6 +357,14 @@ async function classifyCommand(
   const llm = config.llm || {}
   if (llm.enabled === false) {
     return { decision: 'ask', reason: 'LLM classification disabled' }
+  }
+
+  const rawLlm = configManager?.getRawLlmConfig()
+  if (typeof rawLlm?.model !== 'string' || rawLlm.model.length === 0) {
+    return {
+      decision: 'ask',
+      reason: 'LLM model not configured — user confirmation required',
+    }
   }
 
   try {

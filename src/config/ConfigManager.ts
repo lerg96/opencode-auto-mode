@@ -328,6 +328,7 @@ function loadDefaultBlockRules(): BlockRule[] {
 export class ConfigManager {
   private config: PluginConfig
   private configPath: string
+  private rawLlmConfig: Record<string, unknown> | undefined
 
   constructor(configPath?: string) {
     this.configPath = configPath || this.getDefaultConfigPath()
@@ -354,6 +355,16 @@ export class ConfigManager {
       const errors: any[] = []
       const parsed = parse(content, errors) as unknown
 
+      // Capture raw llm config before applying defaults for runtime checks
+      const parsedObj =
+        typeof parsed === 'object' && parsed !== null
+          ? (parsed as Record<string, unknown>)
+          : {}
+      this.rawLlmConfig =
+        typeof parsedObj.llm === 'object' && parsedObj.llm !== null
+          ? (parsedObj.llm as Record<string, unknown>)
+          : undefined
+
       if (errors.length > 0) {
         const errorMessages = errors.map((e) => {
           return `Parse error at offset ${e.offset}: code ${e.code}`
@@ -361,6 +372,7 @@ export class ConfigManager {
         logWarning(
           `JSONC parse errors: ${errorMessages.join(', ')}, using defaults`
         )
+        this.rawLlmConfig = undefined
         const defaultConfig = { ...DEFAULT_CONFIG }
         const defaultRules = loadDefaultBlockRules()
         defaultConfig.blockRules = defaultRules
@@ -410,6 +422,10 @@ export class ConfigManager {
 
   getLLMConfig(): LLMProviderConfig {
     return this.config.llm
+  }
+
+  getRawLlmConfig(): Record<string, unknown> | undefined {
+    return this.rawLlmConfig
   }
 
   getEscalationConfig(): EscalationConfig {

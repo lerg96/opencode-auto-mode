@@ -8,6 +8,8 @@ export interface LLMProviderConfig {
   /** Timeout in milliseconds for LLM API calls. Use -1 for no timeout (infinite). */
   timeout: number
   apiKeysRef: 'opencode-provider-config'
+  /** Model name to use when the primary model fails (5xx, rate limit, timeout). Empty string or undefined disables fallback. */
+  fallbackModel?: string
 }
 
 export interface EscalationConfig {
@@ -41,7 +43,10 @@ export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   model: 'claude-sonnet-4-20250514',
   timeout: 5000, // -1 for no timeout (infinite)
   apiKeysRef: 'opencode-provider-config',
+  fallbackModel: '',
 }
+
+export const DEFAULT_FALLBACK_MODEL = 'mistral-large-latest'
 
 export const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
   consecutive: 3,
@@ -109,10 +114,19 @@ export function validateRequiredFields(config: unknown): boolean {
 
 export function applyDefaults(config: unknown): PluginConfig {
   const parsed = (config as Record<string, unknown>) || {}
+  const llmDefaults: LLMProviderConfig = {
+    ...DEFAULT_LLM_CONFIG,
+    fallbackModel:
+      typeof parsed.llm === 'object' && parsed.llm !== null
+        ? ((parsed.llm as Record<string, unknown>).fallbackModel as string) ||
+          ''
+        : '',
+  }
   return {
     llm: {
       ...DEFAULT_LLM_CONFIG,
       ...((parsed.llm as Record<string, unknown>) || {}),
+      fallbackModel: llmDefaults.fallbackModel || '',
     },
     denyMode: (parsed.denyMode as DenyMode) || DEFAULT_CONFIG.denyMode,
     escalation: {
