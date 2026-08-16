@@ -1,3 +1,5 @@
+// @ts-ignore — dead code, will be removed in next major
+/* DEAD CODE — duplicate of plugin.ts flow. Use LlmClient.ts + callLLMWithModelFallback instead. */
 import { ToolCall } from '../types/ToolCall'
 import {
   ClassificationResult,

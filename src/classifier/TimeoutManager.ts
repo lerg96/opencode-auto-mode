@@ -1,3 +1,5 @@
+// @ts-ignore — dead code, will be removed in next major
+/* DEAD CODE — duplicate of plugin.ts flow. Use LlmClient.ts + callLLMWithModelFallback instead. */
 export class TimeoutManager {
   private readonly stage1Timeout: number
   private readonly stage2Timeout: number

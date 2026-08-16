@@ -1,3 +1,5 @@
+// @ts-ignore — dead code, will be removed in next major
+/* DEAD CODE — duplicate of plugin.ts flow. Use LlmClient.ts + callLLMWithModelFallback instead. */
 import { Stage1Result, Stage2Result } from '../types/ClassificationResult'
 import { PluginConfig } from '../types/PluginConfig'
 import { TimeoutManager } from './TimeoutManager'
