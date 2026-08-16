@@ -75,7 +75,7 @@ function isSuccessResponse(res: Response): boolean {
 }
 
 function isRetryableHttpError(status: number): boolean {
-  return status >= 500 || status === 429 || status === 504
+  return status === 408 || status === 429 || status >= 500 || status === 503 || status === 504
 }
 
 function isTimeoutError(e: unknown): boolean {
