@@ -7,6 +7,19 @@ import {
 import { PatternMatchResult, MatchConfidence } from '../types/RuleTypes'
 import { BlockRule, AllowException } from '../types/RuleTypes'
 
+const MAX_PATTERN_LENGTH = 200
+const SUSPICIOUS_LENGTH_THRESHOLD = 100
+
+const QUANTIFIER_RE = /[+*()]/g
+
+function isSuspiciousPattern(pattern: string): boolean {
+  if (pattern.length <= SUSPICIOUS_LENGTH_THRESHOLD) {
+    return false
+  }
+  const quantifiers = pattern.match(QUANTIFIER_RE)
+  return quantifiers ? quantifiers.length >= 2 : false
+}
+
 export class PatternMatcher {
   match(toolCall: ToolCall, rule: BlockRule): PatternMatchResult {
     if (!rule.enabled) {
@@ -63,6 +76,17 @@ export class PatternMatcher {
     filePath: string | null,
     pattern: string
   ): MatchConfidence {
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      console.warn(
+        `[auto-mode] Pattern "${pattern.slice(0, 50)}..." exceeds max length (${MAX_PATTERN_LENGTH} chars) — rejected for ReDoS safety`
+      )
+      return 'low'
+    }
+    if (isSuspiciousPattern(pattern)) {
+      console.warn(
+        `[auto-mode] Pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers) — matching with reduced confidence`
+      )
+    }
     try {
       const regex = new RegExp(pattern, 'i')
       if (cmd && regex.test(cmd)) {
@@ -96,6 +120,9 @@ export class PatternMatcher {
     filePath: string | null,
     pattern: string
   ): boolean {
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      return false
+    }
     try {
       const regex = new RegExp(pattern, 'i')
       if (cmd && regex.test(cmd)) {
