@@ -1,1 +1,1 @@
-export { PermissionResult } from '../types/PermissionTypes';
+export { PermissionResult } from '../types/PermissionTypes'

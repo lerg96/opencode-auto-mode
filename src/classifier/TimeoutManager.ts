@@ -1,40 +1,44 @@
 export class TimeoutManager {
-  private readonly stage1Timeout: number;
-  private readonly stage2Timeout: number;
+  private readonly stage1Timeout: number
+  private readonly stage2Timeout: number
 
   constructor(stage1TimeoutMs?: number, stage2TimeoutMs?: number) {
-    this.stage1Timeout = stage1TimeoutMs || 500;
-    this.stage2Timeout = stage2TimeoutMs || 5000;
+    this.stage1Timeout = stage1TimeoutMs || 500
+    this.stage2Timeout = stage2TimeoutMs || 5000
   }
 
   createStage1AbortController(): AbortController {
-    const controller = new AbortController();
+    const controller = new AbortController()
     if (this.stage1Timeout > 0) {
-      setTimeout(() => controller.abort(), this.stage1Timeout);
+      setTimeout(() => controller.abort(), this.stage1Timeout)
     }
-    return controller;
+    return controller
   }
 
   createStage2AbortController(): AbortController {
-    const controller = new AbortController();
+    const controller = new AbortController()
     if (this.stage2Timeout > 0) {
-      setTimeout(() => controller.abort(), this.stage2Timeout);
+      setTimeout(() => controller.abort(), this.stage2Timeout)
     }
-    return controller;
+    return controller
   }
 
   isTimeoutError(error: unknown): boolean {
     if (error instanceof Error) {
-      return error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('AbortError');
+      return (
+        error.name === 'AbortError' ||
+        error.message.includes('timeout') ||
+        error.message.includes('AbortError')
+      )
     }
-    return false;
+    return false
   }
 
   getStage1Timeout(): number {
-    return this.stage1Timeout;
+    return this.stage1Timeout
   }
 
   getStage2Timeout(): number {
-    return this.stage2Timeout;
+    return this.stage2Timeout
   }
 }

@@ -1,64 +1,64 @@
 export class RetryHandler {
-  private readonly maxRetries: number;
-  private readonly baseDelayMs: number;
+  private readonly maxRetries: number
+  private readonly baseDelayMs: number
 
   constructor(maxRetries?: number, baseDelayMs?: number) {
-    this.maxRetries = maxRetries || 2;
-    this.baseDelayMs = baseDelayMs || 1000;
+    this.maxRetries = maxRetries || 2
+    this.baseDelayMs = baseDelayMs || 1000
   }
 
   async executeWithRetry<T>(
     operation: () => Promise<T>,
     isRetryable: (error: unknown) => boolean = this.defaultIsRetryable
   ): Promise<T> {
-    let lastError: unknown = null;
+    let lastError: unknown = null
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        return await operation();
+        return await operation()
       } catch (error) {
-        lastError = error;
+        lastError = error
 
         if (!isRetryable(error)) {
-          throw error;
+          throw error
         }
 
         if (attempt < this.maxRetries) {
-          const delay = this.calculateBackoffDelay(attempt);
-          await this.sleep(delay);
+          const delay = this.calculateBackoffDelay(attempt)
+          await this.sleep(delay)
         }
       }
     }
 
-    throw lastError;
+    throw lastError
   }
 
   private defaultIsRetryable(error: unknown): boolean {
     if (error instanceof Error) {
-      const message = error.message.toLowerCase();
+      const message = error.message.toLowerCase()
       if (message.includes('abort') || message.includes('timeout')) {
-        return true;
+        return true
       }
       if (message.includes('network') || message.includes('ECONNREFUSED')) {
-        return true;
+        return true
       }
     }
-    return false;
+    return false
   }
 
   calculateBackoffDelay(attempt: number): number {
-    return this.baseDelayMs * Math.pow(2, attempt);
+    return this.baseDelayMs * Math.pow(2, attempt)
   }
 
   getMaxRetries(): number {
-    return this.maxRetries;
+    return this.maxRetries
   }
 
   getBaseDelay(): number {
-    return this.baseDelayMs;
+    return this.baseDelayMs
   }
 
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }

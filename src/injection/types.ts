@@ -5,19 +5,19 @@ export type InjectionPatternType =
   | 'embedded-command'
   | 'custom-pattern'
   | 'sensitive-data'
-  | 'custom';
+  | 'custom'
 
 export interface InjectionPattern {
-  type: InjectionPatternType;
-  pattern: RegExp;
-  description: string;
+  type: InjectionPatternType
+  pattern: RegExp
+  description: string
 }
 
 export interface InjectionResult {
-  injected: boolean;
-  pattern?: string;
-  patternType?: InjectionPatternType;
-  overrideDecision: 'manual-review' | 'proceed';
+  injected: boolean
+  pattern?: string
+  patternType?: InjectionPatternType
+  overrideDecision: 'manual-review' | 'proceed'
 }
 
 export const DEFAULT_INJECTION_PATTERNS: InjectionPattern[] = [
@@ -111,15 +111,16 @@ export const DEFAULT_INJECTION_PATTERNS: InjectionPattern[] = [
     pattern: /FORGET\s+PREVIOUS\s+INSTRUCTIONS/i,
     description: 'Forget previous instructions attempt',
   },
-];
+]
 
 export const DEFAULT_EMBEDDED_COMMAND_PATTERNS: InjectionPattern[] = [
   {
     type: 'embedded-command',
-    pattern: /```(?:bash|sh|shell|cmd|powershell)\s*\n(?:rm\s+-rf|chmod\s+777|curl.*\|.*sh|wget.*\|.*sh|sudo\s+|nc\s+-e|mkfifo|\/bin\/(sh|bash)|eval\s+|exec\s+)/im,
+    pattern:
+      /```(?:bash|sh|shell|cmd|powershell)\s*\n(?:rm\s+-rf|chmod\s+777|curl.*\|.*sh|wget.*\|.*sh|sudo\s+|nc\s+-e|mkfifo|\/bin\/(sh|bash)|eval\s+|exec\s+)/im,
     description: 'Embedded shell command in code block',
   },
-];
+]
 
 export function createInjectionResult(
   injected: boolean,
@@ -131,5 +132,5 @@ export function createInjectionResult(
     pattern,
     patternType,
     overrideDecision: injected ? 'manual-review' : 'proceed',
-  };
+  }
 }

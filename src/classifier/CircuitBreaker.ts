@@ -5,72 +5,75 @@ export enum CircuitState {
 }
 
 export class CircuitBreaker {
-  private state: CircuitState = CircuitState.CLOSED;
-  private failureCount: number;
-  private readonly failureThreshold: number;
-  private readonly recoveryTimeout: number;
-  private lastFailureTime: number | null;
+  private state: CircuitState = CircuitState.CLOSED
+  private failureCount: number
+  private readonly failureThreshold: number
+  private readonly recoveryTimeout: number
+  private lastFailureTime: number | null
 
-  constructor(
-    failureThreshold?: number,
-    recoveryTimeoutMs?: number
-  ) {
-    this.failureThreshold = failureThreshold || 3;
-    this.failureCount = 0;
-    this.recoveryTimeout = recoveryTimeoutMs || 30000;
-    this.lastFailureTime = null;
+  constructor(failureThreshold?: number, recoveryTimeoutMs?: number) {
+    this.failureThreshold = failureThreshold || 3
+    this.failureCount = 0
+    this.recoveryTimeout = recoveryTimeoutMs || 30000
+    this.lastFailureTime = null
   }
 
   async withCircuitBreaker<T>(operation: () => Promise<T>): Promise<T> {
     if (this.state === CircuitState.OPEN) {
-      if (this.lastFailureTime && (Date.now() - this.lastFailureTime) > this.recoveryTimeout) {
-        this.state = CircuitState.HALF_OPEN;
+      if (
+        this.lastFailureTime &&
+        Date.now() - this.lastFailureTime > this.recoveryTimeout
+      ) {
+        this.state = CircuitState.HALF_OPEN
       } else {
-        throw new Error('Circuit breaker is OPEN - LLM API unavailable');
+        throw new Error('Circuit breaker is OPEN - LLM API unavailable')
       }
     }
 
     try {
-      const result = await operation();
-      this.onSuccess();
-      return result;
+      const result = await operation()
+      this.onSuccess()
+      return result
     } catch (error) {
-      const justOpened = this.onFailure();
+      const justOpened = this.onFailure()
       if (justOpened) {
-        const originalMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Circuit breaker is OPEN - LLM API unavailable (original: ${originalMessage})`);
+        const originalMessage =
+          error instanceof Error ? error.message : String(error)
+        throw new Error(
+          `Circuit breaker is OPEN - LLM API unavailable (original: ${originalMessage})`
+        )
       }
-      throw error;
+      throw error
     }
   }
 
   private onSuccess(): void {
-    this.failureCount = 0;
-    this.state = CircuitState.CLOSED;
+    this.failureCount = 0
+    this.state = CircuitState.CLOSED
   }
 
   private onFailure(): boolean {
-    this.failureCount++;
-    this.lastFailureTime = Date.now();
+    this.failureCount++
+    this.lastFailureTime = Date.now()
 
     if (this.failureCount >= this.failureThreshold) {
-      this.state = CircuitState.OPEN;
-      return true;
+      this.state = CircuitState.OPEN
+      return true
     }
-    return false;
+    return false
   }
 
   getState(): CircuitState {
-    return this.state;
+    return this.state
   }
 
   getFailureCount(): number {
-    return this.failureCount;
+    return this.failureCount
   }
 
   reset(): void {
-    this.failureCount = 0;
-    this.state = CircuitState.CLOSED;
-    this.lastFailureTime = null;
+    this.failureCount = 0
+    this.state = CircuitState.CLOSED
+    this.lastFailureTime = null
   }
 }

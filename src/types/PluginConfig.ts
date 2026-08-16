@@ -1,39 +1,39 @@
-export type LLMProviderType = 'anthropic' | 'openai' | 'local';
-export type DenyMode = 'auto-retry' | 'ask-user' | 'both';
-export type FallbackAction = 'ask-user' | 'allow' | 'deny';
+export type LLMProviderType = 'anthropic' | 'openai' | 'local'
+export type DenyMode = 'auto-retry' | 'ask-user' | 'both'
+export type FallbackAction = 'ask-user' | 'allow' | 'deny'
 
 export interface LLMProviderConfig {
-  provider: LLMProviderType;
-  model: string;
+  provider: LLMProviderType
+  model: string
   /** Timeout in milliseconds for LLM API calls. Use -1 for no timeout (infinite). */
-  timeout: number;
-  apiKeysRef: 'opencode-provider-config';
+  timeout: number
+  apiKeysRef: 'opencode-provider-config'
 }
 
 export interface EscalationConfig {
-  consecutive: number;
-  total: number;
+  consecutive: number
+  total: number
 }
 
 export interface TrustBoundaryConfig {
-  protectedPaths: string[];
-  protectedCommands: string[];
+  protectedPaths: string[]
+  protectedCommands: string[]
 }
 
 export interface FallbackConfig {
-  onTimeout: FallbackAction;
-  onError: FallbackAction;
+  onTimeout: FallbackAction
+  onError: FallbackAction
 }
 
 export interface PluginConfig {
-  llm: LLMProviderConfig;
-  denyMode: DenyMode;
-  escalation: EscalationConfig;
-  blockRules: unknown[];
-  allowExceptions: unknown[];
-  trustBoundary: TrustBoundaryConfig;
-  excludedAgents: string[];
-  fallback: FallbackConfig;
+  llm: LLMProviderConfig
+  denyMode: DenyMode
+  escalation: EscalationConfig
+  blockRules: unknown[]
+  allowExceptions: unknown[]
+  trustBoundary: TrustBoundaryConfig
+  excludedAgents: string[]
+  fallback: FallbackConfig
 }
 
 export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
@@ -41,22 +41,38 @@ export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   model: 'claude-sonnet-4-20250514',
   timeout: 5000, // -1 for no timeout (infinite)
   apiKeysRef: 'opencode-provider-config',
-};
+}
 
 export const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
   consecutive: 3,
   total: 20,
-};
+}
 
 export const DEFAULT_TRUST_BOUNDARY: TrustBoundaryConfig = {
-  protectedPaths: ['/etc/', '~/.ssh/', '~/.env', 'C:\\Windows\\', '%USERPROFILE%\\.ssh\\', '%USERPROFILE%\\.env\\'],
-  protectedCommands: ['sudo', 'su', 'chmod 777', 'iptables', 'rm -rf', 'mkfs', 'dd if=', 'fdisk'],
-};
+  protectedPaths: [
+    '/etc/',
+    '~/.ssh/',
+    '~/.env',
+    'C:\\Windows\\',
+    '%USERPROFILE%\\.ssh\\',
+    '%USERPROFILE%\\.env\\',
+  ],
+  protectedCommands: [
+    'sudo',
+    'su',
+    'chmod 777',
+    'iptables',
+    'rm -rf',
+    'mkfs',
+    'dd if=',
+    'fdisk',
+  ],
+}
 
 export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
   onTimeout: 'ask-user',
   onError: 'ask-user',
-};
+}
 
 export const DEFAULT_CONFIG: PluginConfig = {
   llm: DEFAULT_LLM_CONFIG,
@@ -67,52 +83,56 @@ export const DEFAULT_CONFIG: PluginConfig = {
   trustBoundary: DEFAULT_TRUST_BOUNDARY,
   excludedAgents: ['explore', 'research'],
   fallback: DEFAULT_FALLBACK_CONFIG,
-};
+}
 
 export function validateRequiredFields(config: unknown): boolean {
   if (!config || typeof config !== 'object') {
-    return false;
+    return false
   }
-  const c = config as Record<string, unknown>;
+  const c = config as Record<string, unknown>
   if (!c.llm || typeof c.llm !== 'object') {
-    return false;
+    return false
   }
-  const llm = c.llm as Record<string, unknown>;
+  const llm = c.llm as Record<string, unknown>
   if (!llm.provider || typeof llm.provider !== 'string') {
-    return false;
+    return false
   }
   if (!llm.model || typeof llm.model !== 'string') {
-    return false;
+    return false
   }
-  const validProviders: LLMProviderType[] = ['anthropic', 'openai', 'local'];
+  const validProviders: LLMProviderType[] = ['anthropic', 'openai', 'local']
   if (!validProviders.includes(llm.provider as LLMProviderType)) {
-    return false;
+    return false
   }
-  return true;
+  return true
 }
 
 export function applyDefaults(config: unknown): PluginConfig {
-  const parsed = (config as Record<string, unknown>) || {};
+  const parsed = (config as Record<string, unknown>) || {}
   return {
     llm: {
       ...DEFAULT_LLM_CONFIG,
-      ...(parsed.llm as Record<string, unknown> || {}),
+      ...((parsed.llm as Record<string, unknown>) || {}),
     },
     denyMode: (parsed.denyMode as DenyMode) || DEFAULT_CONFIG.denyMode,
     escalation: {
       ...DEFAULT_ESCALATION_CONFIG,
-      ...(parsed.escalation as Record<string, unknown> || {}),
+      ...((parsed.escalation as Record<string, unknown>) || {}),
     },
     blockRules: Array.isArray(parsed.blockRules) ? parsed.blockRules : [],
-    allowExceptions: Array.isArray(parsed.allowExceptions) ? parsed.allowExceptions : [],
+    allowExceptions: Array.isArray(parsed.allowExceptions)
+      ? parsed.allowExceptions
+      : [],
     trustBoundary: {
       ...DEFAULT_TRUST_BOUNDARY,
-      ...(parsed.trustBoundary as Record<string, unknown> || {}),
+      ...((parsed.trustBoundary as Record<string, unknown>) || {}),
     },
-    excludedAgents: Array.isArray(parsed.excludedAgents) ? parsed.excludedAgents : [],
+    excludedAgents: Array.isArray(parsed.excludedAgents)
+      ? parsed.excludedAgents
+      : [],
     fallback: {
       ...DEFAULT_FALLBACK_CONFIG,
-      ...(parsed.fallback as Record<string, unknown> || {}),
+      ...((parsed.fallback as Record<string, unknown>) || {}),
     },
-  };
+  }
 }

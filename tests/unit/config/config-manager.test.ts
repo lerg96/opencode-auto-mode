@@ -1,48 +1,54 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { ConfigManager } from '../../../src/config/ConfigManager';
-import { DEFAULT_CONFIG, validateRequiredFields, applyDefaults } from '../../../src/types/PluginConfig';
+import * as fs from 'fs'
+import * as path from 'path'
+import { ConfigManager } from '../../../src/config/ConfigManager'
+import {
+  DEFAULT_CONFIG,
+  validateRequiredFields,
+  applyDefaults,
+} from '../../../src/types/PluginConfig'
 
-jest.mock('fs');
-jest.mock('path');
+jest.mock('fs')
+jest.mock('path')
 
 describe('ConfigManager', () => {
-  const originalEnv = process.env;
+  const originalEnv = process.env
 
   beforeEach(() => {
-    jest.resetModules();
-    process.env = { ...originalEnv };
-    process.env.HOME = '/tmp/test-home';
-    (path.join as jest.Mock).mockImplementation((...args: string[]) => args.join('/'));
-  });
+    jest.resetModules()
+    process.env = { ...originalEnv }
+    process.env.HOME = '/tmp/test-home'
+    ;(path.join as jest.Mock).mockImplementation((...args: string[]) =>
+      args.join('/')
+    )
+  })
 
   afterEach(() => {
-    process.env = originalEnv;
-  });
+    process.env = originalEnv
+  })
 
   describe('loadFromPath', () => {
     it('should return defaults when config file does not exist', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
 
-      const manager = new ConfigManager('/nonexistent/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/nonexistent/config.jsonc')
+      const config = manager.getConfig()
 
-      expect(config.llm).toBeDefined();
-      expect(config.denyMode).toBe('auto-retry');
-      expect(config.escalation.consecutive).toBe(3);
-      expect(config.escalation.total).toBe(20);
-    });
+      expect(config.llm).toBeDefined()
+      expect(config.denyMode).toBe('auto-retry')
+      expect(config.escalation.consecutive).toBe(3)
+      expect(config.escalation.total).toBe(20)
+    })
 
     it('should return defaults when config file has invalid JSONC', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue('invalid jsonc {[[[');
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue('invalid jsonc {[[[')
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      expect(config.llm).toBeDefined();
-      expect(config.denyMode).toBe('auto-retry');
-    });
+      expect(config.llm).toBeDefined()
+      expect(config.denyMode).toBe('auto-retry')
+    })
 
     it('should load valid config with overrides', () => {
       const validConfig = JSON.stringify({
@@ -54,170 +60,176 @@ describe('ConfigManager', () => {
         blockRules: [],
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(validConfig);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(validConfig)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      expect(config.llm.provider).toBe('openai');
-      expect(config.llm.model).toBe('gpt-4');
-      expect(config.llm.timeout).toBe(3000);
-      expect(config.denyMode).toBe('ask-user');
-      expect(config.escalation.consecutive).toBe(5);
-      expect(config.escalation.total).toBe(10);
-      expect(config.fallback.onTimeout).toBe('allow');
-      expect(config.fallback.onError).toBe('deny');
-      expect(config.excludedAgents).toContain('custom-agent');
-    });
+      expect(config.llm.provider).toBe('openai')
+      expect(config.llm.model).toBe('gpt-4')
+      expect(config.llm.timeout).toBe(3000)
+      expect(config.denyMode).toBe('ask-user')
+      expect(config.escalation.consecutive).toBe(5)
+      expect(config.escalation.total).toBe(10)
+      expect(config.fallback.onTimeout).toBe('allow')
+      expect(config.fallback.onError).toBe('deny')
+      expect(config.excludedAgents).toContain('custom-agent')
+    })
 
     it('should load config and merge with default block rules', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({}));
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({}))
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      expect(Array.isArray(config.blockRules)).toBe(true);
-    });
-  });
+      expect(Array.isArray(config.blockRules)).toBe(true)
+    })
+  })
 
   describe('load', () => {
     it('should use custom config path when provided', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
 
-      const manager = new ConfigManager();
-      manager.load('/custom/path/config.jsonc');
+      const manager = new ConfigManager()
+      manager.load('/custom/path/config.jsonc')
 
-      expect(fs.existsSync).toHaveBeenCalledWith('/custom/path/config.jsonc');
-    });
-  });
+      expect(fs.existsSync).toHaveBeenCalledWith('/custom/path/config.jsonc')
+    })
+  })
 
   describe('reload', () => {
     it('should reload configuration from the same path', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      manager.reload();
+      const manager = new ConfigManager('/test/config.jsonc')
+      manager.reload()
 
-      expect(fs.existsSync).toHaveBeenCalledWith('/test/config.jsonc');
-    });
-  });
+      expect(fs.existsSync).toHaveBeenCalledWith('/test/config.jsonc')
+    })
+  })
 
   describe('getConfig accessors', () => {
     it('should provide typed access to config values', () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
 
-      const manager = new ConfigManager('/test/config.jsonc');
+      const manager = new ConfigManager('/test/config.jsonc')
 
-      expect(manager.getLLMConfig()).toBeDefined();
-      expect(manager.getEscalationConfig()).toBeDefined();
-      expect(manager.getFallbackConfig()).toBeDefined();
-      expect(manager.getDenyMode()).toBe('auto-retry');
-      expect(manager.getBlockRules()).toBeDefined();
-      expect(manager.getAllowExceptions()).toBeDefined();
-      expect(manager.getTrustBoundary()).toBeDefined();
-      expect(manager.getExcludedAgents()).toBeDefined();
-      expect(manager.isAgentExcluded('explore')).toBe(true);
-      expect(manager.isAgentExcluded('unknown-agent')).toBe(false);
-    });
-  });
+      expect(manager.getLLMConfig()).toBeDefined()
+      expect(manager.getEscalationConfig()).toBeDefined()
+      expect(manager.getFallbackConfig()).toBeDefined()
+      expect(manager.getDenyMode()).toBe('auto-retry')
+      expect(manager.getBlockRules()).toBeDefined()
+      expect(manager.getAllowExceptions()).toBeDefined()
+      expect(manager.getTrustBoundary()).toBeDefined()
+      expect(manager.getExcludedAgents()).toBeDefined()
+      expect(manager.isAgentExcluded('explore')).toBe(true)
+      expect(manager.isAgentExcluded('unknown-agent')).toBe(false)
+    })
+  })
 
   describe('getDefaultConfigPath', () => {
     it('should return default path in HOME/.opencode/', () => {
-      const manager = new ConfigManager();
-      const defaultPath = manager.getDefaultConfigPath();
+      const manager = new ConfigManager()
+      const defaultPath = manager.getDefaultConfigPath()
 
-      expect(defaultPath).toContain('.opencode');
-      expect(defaultPath).toContain('auto-mode.jsonc');
-    });
-  });
-});
+      expect(defaultPath).toContain('.opencode')
+      expect(defaultPath).toContain('auto-mode.jsonc')
+    })
+  })
+})
 
 describe('validateRequiredFields', () => {
   it('should return true for valid config', () => {
     const valid = {
-      llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514', timeout: 5000 },
-    };
-    expect(validateRequiredFields(valid)).toBe(true);
-  });
+      llm: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-20250514',
+        timeout: 5000,
+      },
+    }
+    expect(validateRequiredFields(valid)).toBe(true)
+  })
 
   it('should return false for null', () => {
-    expect(validateRequiredFields(null)).toBe(false);
-  });
+    expect(validateRequiredFields(null)).toBe(false)
+  })
 
   it('should return false for string', () => {
-    expect(validateRequiredFields('invalid')).toBe(false);
-  });
+    expect(validateRequiredFields('invalid')).toBe(false)
+  })
 
   it('should return false for missing llm', () => {
-    const invalid = { denyMode: 'auto-retry' };
-    expect(validateRequiredFields(invalid)).toBe(false);
-  });
+    const invalid = { denyMode: 'auto-retry' }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
 
   it('should return false for missing provider', () => {
-    const invalid = { llm: { model: 'test' } };
-    expect(validateRequiredFields(invalid)).toBe(false);
-  });
+    const invalid = { llm: { model: 'test' } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
 
   it('should return false for missing model', () => {
-    const invalid = { llm: { provider: 'anthropic' } };
-    expect(validateRequiredFields(invalid)).toBe(false);
-  });
+    const invalid = { llm: { provider: 'anthropic' } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
 
   it('should return false for invalid provider', () => {
-    const invalid = { llm: { provider: 'invalid', model: 'test' } };
-    expect(validateRequiredFields(invalid)).toBe(false);
-  });
-});
+    const invalid = { llm: { provider: 'invalid', model: 'test' } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+})
 
 describe('applyDefaults', () => {
   it('should apply all defaults for empty object', () => {
-    const result = applyDefaults({});
+    const result = applyDefaults({})
 
-    expect(result.llm.provider).toBe('anthropic');
-    expect(result.llm.timeout).toBe(5000);
-    expect(result.denyMode).toBe('auto-retry');
-    expect(result.escalation.consecutive).toBe(3);
-    expect(result.fallback.onTimeout).toBe('ask-user');
-  });
+    expect(result.llm.provider).toBe('anthropic')
+    expect(result.llm.timeout).toBe(5000)
+    expect(result.denyMode).toBe('auto-retry')
+    expect(result.escalation.consecutive).toBe(3)
+    expect(result.fallback.onTimeout).toBe('ask-user')
+  })
 
   it('should merge partial config with defaults', () => {
     const partial = {
       llm: { provider: 'openai', model: 'gpt-4' },
       denyMode: 'both',
-    };
+    }
 
-    const result = applyDefaults(partial);
+    const result = applyDefaults(partial)
 
-    expect(result.llm.provider).toBe('openai');
-    expect(result.llm.model).toBe('gpt-4');
-    expect(result.llm.timeout).toBe(5000);
-    expect(result.denyMode).toBe('both');
-    expect(result.fallback.onTimeout).toBe('ask-user');
-  });
+    expect(result.llm.provider).toBe('openai')
+    expect(result.llm.model).toBe('gpt-4')
+    expect(result.llm.timeout).toBe(5000)
+    expect(result.denyMode).toBe('both')
+    expect(result.fallback.onTimeout).toBe('ask-user')
+  })
 
   it('should handle undefined input', () => {
-    const result = applyDefaults(undefined);
-    expect(result.llm.provider).toBe('anthropic');
-  });
-});
+    const result = applyDefaults(undefined)
+    expect(result.llm.provider).toBe('anthropic')
+  })
+})
 
 describe('ConfigManager - Extensible Rules Framework', () => {
-  const originalEnv = process.env;
+  const originalEnv = process.env
 
   beforeEach(() => {
-    jest.resetModules();
-    process.env = { ...originalEnv };
-    process.env.HOME = '/tmp/test-home';
-    (path.join as jest.Mock).mockImplementation((...args: string[]) => args.join('/'));
-  });
+    jest.resetModules()
+    process.env = { ...originalEnv }
+    process.env.HOME = '/tmp/test-home'
+    ;(path.join as jest.Mock).mockImplementation((...args: string[]) =>
+      args.join('/')
+    )
+  })
 
   afterEach(() => {
-    process.env = originalEnv;
-  });
+    process.env = originalEnv
+  })
 
   describe('custom rules are loaded from config', () => {
     it('should load custom block rules from config file', () => {
@@ -231,24 +243,26 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           severity: 'high',
           enabled: true,
         },
-      ];
+      ]
 
       const configWithCustomRules = JSON.stringify({
         blockRules: customRules,
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      const customRuleFound = config.blockRules.find((r: any) => r.id === 'BR-CUSTOM-001');
-      expect(customRuleFound).toBeDefined();
-      expect((customRuleFound as any).pattern).toBe('dangerous-command');
-    });
+      const customRuleFound = config.blockRules.find(
+        (r: any) => r.id === 'BR-CUSTOM-001'
+      )
+      expect(customRuleFound).toBeDefined()
+      expect((customRuleFound as any).pattern).toBe('dangerous-command')
+    })
 
     it('should load custom allow exceptions from config file', () => {
       const customExceptions = [
@@ -259,25 +273,29 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           description: 'Allow safe operation',
           enabled: true,
         },
-      ];
+      ]
 
       const configWithCustomExceptions = JSON.stringify({
         blockRules: [],
         allowExceptions: customExceptions,
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomExceptions);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(
+        configWithCustomExceptions
+      )
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      const customExceptionFound = config.allowExceptions.find((e: any) => e.id === 'AE-CUSTOM-001');
-      expect(customExceptionFound).toBeDefined();
-      expect((customExceptionFound as any).pattern).toBe('safe-operation');
-    });
-  });
+      const customExceptionFound = config.allowExceptions.find(
+        (e: any) => e.id === 'AE-CUSTOM-001'
+      )
+      expect(customExceptionFound).toBeDefined()
+      expect((customExceptionFound as any).pattern).toBe('safe-operation')
+    })
+  })
 
   describe('custom rules are merged with default rules', () => {
     it('should include both default rules and custom rules', () => {
@@ -291,27 +309,31 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           severity: 'high',
           enabled: true,
         },
-      ];
+      ]
 
       const configWithCustomRules = JSON.stringify({
         blockRules: customRules,
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      const defaultRuleFound = config.blockRules.find((r: any) => r.id === 'BR-001');
-      const customRuleFound = config.blockRules.find((r: any) => r.id === 'BR-CUSTOM-001');
+      const defaultRuleFound = config.blockRules.find(
+        (r: any) => r.id === 'BR-001'
+      )
+      const customRuleFound = config.blockRules.find(
+        (r: any) => r.id === 'BR-CUSTOM-001'
+      )
 
-      expect(defaultRuleFound).toBeDefined();
-      expect(customRuleFound).toBeDefined();
-      expect(config.blockRules.length).toBeGreaterThan(30);
-    });
+      expect(defaultRuleFound).toBeDefined()
+      expect(customRuleFound).toBeDefined()
+      expect(config.blockRules.length).toBeGreaterThan(30)
+    })
 
     it('should append custom rules after default rules', () => {
       const customRules = [
@@ -324,38 +346,38 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           severity: 'high',
           enabled: true,
         },
-      ];
+      ]
 
       const configWithCustomRules = JSON.stringify({
         blockRules: customRules,
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(configWithCustomRules)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      const defaultRuleIndices: number[] = [];
-      const customRuleIndices: number[] = [];
+      const defaultRuleIndices: number[] = []
+      const customRuleIndices: number[] = []
 
       config.blockRules.forEach((rule: any, index: number) => {
         if (rule.id.startsWith('BR-00')) {
-          defaultRuleIndices.push(index);
+          defaultRuleIndices.push(index)
         } else if (rule.id.startsWith('BR-CUSTOM')) {
-          customRuleIndices.push(index);
+          customRuleIndices.push(index)
         }
-      });
+      })
 
       if (defaultRuleIndices.length > 0 && customRuleIndices.length > 0) {
-        const maxDefaultIndex = Math.max(...defaultRuleIndices);
-        const minCustomIndex = Math.min(...customRuleIndices);
-        expect(minCustomIndex).toBeGreaterThan(maxDefaultIndex);
+        const maxDefaultIndex = Math.max(...defaultRuleIndices)
+        const minCustomIndex = Math.min(...customRuleIndices)
+        expect(minCustomIndex).toBeGreaterThan(maxDefaultIndex)
       }
-    });
-  });
+    })
+  })
 
   describe('custom allow exceptions override default block rules', () => {
     it('should allow exception to override a matching block rule', () => {
@@ -371,18 +393,20 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           },
         ],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithException);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(configWithException)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      const exceptionFound = config.allowExceptions.find((e: any) => e.id === 'AE-CUSTOM-OVERRIDE');
-      expect(exceptionFound).toBeDefined();
-      expect((exceptionFound as any).pattern).toBe('rm -rf');
-    });
+      const exceptionFound = config.allowExceptions.find(
+        (e: any) => e.id === 'AE-CUSTOM-OVERRIDE'
+      )
+      expect(exceptionFound).toBeDefined()
+      expect((exceptionFound as any).pattern).toBe('rm -rf')
+    })
 
     it('should have custom exceptions that match dangerous commands', () => {
       const exceptions = [
@@ -400,25 +424,25 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           description: 'Allow sudo for npm install only',
           enabled: true,
         },
-      ];
+      ]
 
       const configWithExceptions = JSON.stringify({
         blockRules: [],
         allowExceptions: exceptions,
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(configWithExceptions);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(configWithExceptions)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const config = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
 
-      expect(config.allowExceptions.length).toBe(2);
-      expect((config.allowExceptions as any[])[0].id).toBe('AE-OVERRIDE-RM');
-      expect((config.allowExceptions as any[])[1].id).toBe('AE-OVERRIDE-SUDO');
-    });
-  });
+      expect(config.allowExceptions.length).toBe(2)
+      expect((config.allowExceptions as any[])[0].id).toBe('AE-OVERRIDE-RM')
+      expect((config.allowExceptions as any[])[1].id).toBe('AE-OVERRIDE-SUDO')
+    })
+  })
 
   describe('custom rules with regex patterns', () => {
     it('should load custom rules with regex pattern prefix', () => {
@@ -432,25 +456,27 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           severity: 'high',
           enabled: true,
         },
-      ];
+      ]
 
       const config = JSON.stringify({
         blockRules: customRegexRule,
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(config);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(config)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const loadedConfig = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const loadedConfig = manager.getConfig()
 
-      const regexRule = loadedConfig.blockRules.find((r: any) => r.id === 'BR-REGEX-001');
-      expect(regexRule).toBeDefined();
-      expect((regexRule as any).pattern).toBe('regex:os\\.remove\\s*\\(');
-    });
-  });
+      const regexRule = loadedConfig.blockRules.find(
+        (r: any) => r.id === 'BR-REGEX-001'
+      )
+      expect(regexRule).toBeDefined()
+      expect((regexRule as any).pattern).toBe('regex:os\\.remove\\s*\\(')
+    })
+  })
 
   describe('multiple custom rules loading', () => {
     it('should load multiple custom block rules', () => {
@@ -482,22 +508,24 @@ describe('ConfigManager - Extensible Rules Framework', () => {
           severity: 'low',
           enabled: false,
         },
-      ];
+      ]
 
       const config = JSON.stringify({
         blockRules: customRules,
         allowExceptions: [],
         trustBoundary: { protectedPaths: [], protectedCommands: [] },
-      });
+      })
 
-      (fs.existsSync as jest.Mock).mockReturnValue(true);
-      (fs.readFileSync as jest.Mock).mockReturnValue(config);
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(config)
 
-      const manager = new ConfigManager('/test/config.jsonc');
-      const loadedConfig = manager.getConfig();
+      const manager = new ConfigManager('/test/config.jsonc')
+      const loadedConfig = manager.getConfig()
 
-      const customCount = loadedConfig.blockRules.filter((r: any) => r.id.startsWith('BR-CUSTOM')).length;
-      expect(customCount).toBe(3);
-    });
-  });
-});
+      const customCount = loadedConfig.blockRules.filter((r: any) =>
+        r.id.startsWith('BR-CUSTOM')
+      ).length
+      expect(customCount).toBe(3)
+    })
+  })
+})

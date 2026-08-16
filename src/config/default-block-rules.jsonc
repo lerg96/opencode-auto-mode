@@ -7,7 +7,7 @@
     "category": "destruction",
     "description": "Recursive force deletion",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-002",
@@ -16,7 +16,7 @@
     "category": "destruction",
     "description": "Docker force removal",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-003",
@@ -25,7 +25,7 @@
     "category": "destruction",
     "description": "Docker image force removal",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-004",
@@ -34,7 +34,7 @@
     "category": "destruction",
     "description": "Docker system prune force",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-005",
@@ -43,7 +43,7 @@
     "category": "destruction",
     "description": "Remove node_modules force",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
 
   // System Configuration
@@ -54,7 +54,7 @@
     "category": "configuration",
     "description": "System configuration path access",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-007",
@@ -63,7 +63,7 @@
     "category": "configuration",
     "description": "Hosts file modification",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-008",
@@ -72,7 +72,7 @@
     "category": "configuration",
     "description": "Privilege escalation via sudo",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-009",
@@ -81,7 +81,7 @@
     "category": "configuration",
     "description": "Sudo chmod execution",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-010",
@@ -90,7 +90,7 @@
     "category": "configuration",
     "description": "World-writable permissions",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-011",
@@ -99,7 +99,7 @@
     "category": "configuration",
     "description": "System service modification",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
 
   // Security & Credentials
@@ -110,7 +110,7 @@
     "category": "security",
     "description": "SSH key directory access",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-013",
@@ -119,7 +119,7 @@
     "category": "security",
     "description": "Environment file access",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-014",
@@ -128,7 +128,7 @@
     "category": "security",
     "description": "Environment variable exposure",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-015",
@@ -137,7 +137,7 @@
     "category": "security",
     "description": "SSH private key exposure",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-016",
@@ -146,7 +146,7 @@
     "category": "security",
     "description": "SSL certificate manipulation",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
 
   // Network & Firewall
@@ -157,7 +157,7 @@
     "category": "network",
     "description": "Firewall modification",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-018",
@@ -166,7 +166,7 @@
     "category": "network",
     "description": "Ubuntu firewall modification",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-019",
@@ -175,7 +175,7 @@
     "category": "network",
     "description": "Network port scanning",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
 
   // Database
@@ -186,7 +186,7 @@
     "category": "database",
     "description": "Database table destruction",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-021",
@@ -195,7 +195,7 @@
     "category": "database",
     "description": "DELETE without WHERE clause",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-022",
@@ -204,7 +204,7 @@
     "category": "database",
     "description": "Database table truncation",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
 
   // Version Control
@@ -215,7 +215,7 @@
     "category": "version-control",
     "description": "Git force push (history rewrite)",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-024",
@@ -224,7 +224,7 @@
     "category": "version-control",
     "description": "Git reset (potential history loss)",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
 
   // Cloud Infrastructure
@@ -235,7 +235,7 @@
     "category": "cloud",
     "description": "Kubernetes resource deletion",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-026",
@@ -244,7 +244,7 @@
     "category": "cloud",
     "description": "AWS IAM modification",
     "severity": "critical",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-027",
@@ -253,7 +253,7 @@
     "category": "cloud",
     "description": "AWS IAM command execution",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
 
   // System Administration
@@ -264,7 +264,7 @@
     "category": "system-admin",
     "description": "Cron job modification",
     "severity": "medium",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-029",
@@ -273,7 +273,7 @@
     "category": "system-admin",
     "description": "Kernel module loading",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "BR-030",
@@ -282,7 +282,7 @@
     "category": "system-admin",
     "description": "Kernel module loading",
     "severity": "high",
-    "enabled": true
+    "enabled": true,
   },
 
   {
@@ -290,69 +290,69 @@
     "type": "pattern",
     "pattern": "rm\\s+-rf\\s+node_modules\\s+--force",
     "description": "Allow rm node_modules with explicit --force flag",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-002",
     "type": "pattern",
     "pattern": "chmod\\s+644",
     "description": "Allow chmod 644 (read/write owner, read others)",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-003",
     "type": "pattern",
     "pattern": "chmod\\s+755",
     "description": "Allow chmod 755 (rwxr-xr-x)",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-004",
     "type": "pattern",
     "pattern": "cat\\s+\\.\\.\\/\\.env\\.example",
     "description": "Allow reading .env.example template files",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-005",
     "type": "pattern",
     "pattern": "openssl\\s+version",
     "description": "Allow checking OpenSSL version",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-006",
     "type": "pattern",
     "pattern": "git\\s+push\\s+--force-with-lease",
     "description": "Allow safe force push with lease",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-007",
     "type": "pattern",
     "pattern": "systemctl\\s+status",
     "description": "Allow checking service status (read-only)",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-008",
     "type": "pattern",
     "pattern": "docker\\s+ps",
     "description": "Allow listing running containers (read-only)",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-009",
     "type": "pattern",
     "pattern": "aws\\s+iam\\s+get-",
     "description": "Allow AWS IAM read operations (get-user, get-role, etc.)",
-    "enabled": true
+    "enabled": true,
   },
   {
     "id": "AE-010",
     "type": "pattern",
     "pattern": "nmap\\s+-sV\\s+localhost",
     "description": "Allow local version scan on localhost only",
-    "enabled": true
-  }
+    "enabled": true,
+  },
 ]

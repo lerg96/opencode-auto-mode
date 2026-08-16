@@ -1,1 +1,1 @@
-export { EscalationResult } from '../types/EscalationTypes';
+export { EscalationResult } from '../types/EscalationTypes'

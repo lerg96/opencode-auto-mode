@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { parse } from 'jsonc-parser';
+import * as fs from 'fs'
+import * as path from 'path'
+import { parse } from 'jsonc-parser'
 import {
   PluginConfig,
   DEFAULT_CONFIG,
@@ -10,10 +10,10 @@ import {
   EscalationConfig,
   FallbackConfig,
   TrustBoundaryConfig,
-} from '../types/PluginConfig';
-import { BlockRule } from '../types/RuleTypes';
+} from '../types/PluginConfig'
+import { BlockRule } from '../types/RuleTypes'
 
-const ERROR_LOGGER_COMPONENT = 'ConfigManager';
+const ERROR_LOGGER_COMPONENT = 'ConfigManager'
 
 function logError(_message: string, _error?: unknown): void {}
 
@@ -22,14 +22,14 @@ function logWarning(_message: string): void {}
 function logInfo(_message: string): void {}
 
 function loadDefaultBlockRules(): BlockRule[] {
-  const rulesPath = path.join(__dirname, 'default-block-rules.jsonc');
+  const rulesPath = path.join(__dirname, 'default-block-rules.jsonc')
   try {
     if (fs.existsSync(rulesPath)) {
-      const content = fs.readFileSync(rulesPath, 'utf-8');
-      const errors: any[] = [];
-      const result = parse(content, errors) as unknown;
+      const content = fs.readFileSync(rulesPath, 'utf-8')
+      const errors: any[] = []
+      const result = parse(content, errors) as unknown
       if (errors.length > 0) {
-        logWarning('Errors parsing default block rules, using bundled defaults');
+        logWarning('Errors parsing default block rules, using bundled defaults')
       } else if (Array.isArray(result)) {
         const filtered = result.filter((item): item is BlockRule => {
           return (
@@ -41,15 +41,15 @@ function loadDefaultBlockRules(): BlockRule[] {
             'category' in item &&
             'description' in item &&
             'severity' in item
-          );
-        });
+          )
+        })
         if (filtered.length > 0) {
-          return filtered;
+          return filtered
         }
       }
     }
   } catch (err) {
-    logWarning(`Could not load default block rules: ${(err as Error)?.message}`);
+    logWarning(`Could not load default block rules: ${(err as Error)?.message}`)
   }
   return [
     {
@@ -322,250 +322,290 @@ function loadDefaultBlockRules(): BlockRule[] {
       severity: 'critical',
       enabled: true,
     },
-  ];
+  ]
 }
 
 export class ConfigManager {
-  private config: PluginConfig;
-  private configPath: string;
+  private config: PluginConfig
+  private configPath: string
 
   constructor(configPath?: string) {
-    this.configPath = configPath || this.getDefaultConfigPath();
-    this.config = this.loadFromPath(this.configPath);
+    this.configPath = configPath || this.getDefaultConfigPath()
+    this.config = this.loadFromPath(this.configPath)
   }
 
   getDefaultConfigPath(): string {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
-    const opencodeDir = path.join(homeDir, '.opencode');
-    return path.join(opencodeDir, 'auto-mode.jsonc');
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '.'
+    const opencodeDir = path.join(homeDir, '.opencode')
+    return path.join(opencodeDir, 'auto-mode.jsonc')
   }
 
   loadFromPath(configPath: string): PluginConfig {
     try {
       if (!fs.existsSync(configPath)) {
-        logWarning(`Config file not found at ${configPath}, using defaults`);
-        const defaultConfig = { ...DEFAULT_CONFIG };
-        const defaultRules = loadDefaultBlockRules();
-        defaultConfig.blockRules = defaultRules;
-        return defaultConfig;
+        logWarning(`Config file not found at ${configPath}, using defaults`)
+        const defaultConfig = { ...DEFAULT_CONFIG }
+        const defaultRules = loadDefaultBlockRules()
+        defaultConfig.blockRules = defaultRules
+        return defaultConfig
       }
 
-      const content = fs.readFileSync(configPath, 'utf-8');
-      const errors: any[] = [];
-      const parsed = parse(content, errors) as unknown;
+      const content = fs.readFileSync(configPath, 'utf-8')
+      const errors: any[] = []
+      const parsed = parse(content, errors) as unknown
 
       if (errors.length > 0) {
         const errorMessages = errors.map((e) => {
-          return `Parse error at offset ${e.offset}: code ${e.code}`;
-        });
-        logWarning(`JSONC parse errors: ${errorMessages.join(', ')}, using defaults`);
-        const defaultConfig = { ...DEFAULT_CONFIG };
-        const defaultRules = loadDefaultBlockRules();
-        defaultConfig.blockRules = defaultRules;
-        return defaultConfig;
+          return `Parse error at offset ${e.offset}: code ${e.code}`
+        })
+        logWarning(
+          `JSONC parse errors: ${errorMessages.join(', ')}, using defaults`
+        )
+        const defaultConfig = { ...DEFAULT_CONFIG }
+        const defaultRules = loadDefaultBlockRules()
+        defaultConfig.blockRules = defaultRules
+        return defaultConfig
       }
 
       if (!validateRequiredFields(parsed)) {
-        logWarning('Missing required config fields, using defaults');
-        const merged = applyDefaults(parsed);
-        const defaultRules = loadDefaultBlockRules();
-        merged.blockRules = defaultRules.concat(merged.blockRules as BlockRule[]);
-        return merged;
+        logWarning('Missing required config fields, using defaults')
+        const merged = applyDefaults(parsed)
+        const defaultRules = loadDefaultBlockRules()
+        merged.blockRules = defaultRules.concat(
+          merged.blockRules as BlockRule[]
+        )
+        return merged
       }
 
-      const merged = applyDefaults(parsed);
-      const defaultRules = loadDefaultBlockRules();
-      merged.blockRules = defaultRules.concat(merged.blockRules as BlockRule[]);
-      logInfo('Configuration loaded successfully');
-      return merged;
+      const merged = applyDefaults(parsed)
+      const defaultRules = loadDefaultBlockRules()
+      merged.blockRules = defaultRules.concat(merged.blockRules as BlockRule[])
+      logInfo('Configuration loaded successfully')
+      return merged
     } catch (error) {
-      logError('Error loading config file', error);
-      const defaultConfig = { ...DEFAULT_CONFIG };
-      const defaultRules = loadDefaultBlockRules();
-      defaultConfig.blockRules = defaultRules;
-      return defaultConfig;
+      logError('Error loading config file', error)
+      const defaultConfig = { ...DEFAULT_CONFIG }
+      const defaultRules = loadDefaultBlockRules()
+      defaultConfig.blockRules = defaultRules
+      return defaultConfig
     }
   }
 
   load(configPath?: string): PluginConfig {
     if (configPath) {
-      this.configPath = configPath;
+      this.configPath = configPath
     }
-    this.config = this.loadFromPath(this.configPath);
-    this.warnInvalidFields(this.config);
-    return this.getConfig();
+    this.config = this.loadFromPath(this.configPath)
+    this.warnInvalidFields(this.config)
+    return this.getConfig()
   }
 
   reload(configPath?: string): PluginConfig {
-    return this.load(configPath);
+    return this.load(configPath)
   }
 
   getConfig(): PluginConfig {
-    return this.config;
+    return this.config
   }
 
   getLLMConfig(): LLMProviderConfig {
-    return this.config.llm;
+    return this.config.llm
   }
 
   getEscalationConfig(): EscalationConfig {
-    return this.config.escalation;
+    return this.config.escalation
   }
 
   getFallbackConfig(): FallbackConfig {
-    return this.config.fallback;
+    return this.config.fallback
   }
 
   getDenyMode(): string {
-    return this.config.denyMode;
+    return this.config.denyMode
   }
 
   getBlockRules(): unknown[] {
-    return this.config.blockRules;
+    return this.config.blockRules
   }
 
   getAllowExceptions(): unknown[] {
-    return this.config.allowExceptions;
+    return this.config.allowExceptions
   }
 
   getTrustBoundary(): TrustBoundaryConfig {
-    return this.config.trustBoundary;
+    return this.config.trustBoundary
   }
 
   getExcludedAgents(): string[] {
-    return this.config.excludedAgents;
+    return this.config.excludedAgents
   }
 
   isAgentExcluded(agentName: string): boolean {
-    return this.config.excludedAgents.includes(agentName);
+    return this.config.excludedAgents.includes(agentName)
   }
 
   validateConfig(config: PluginConfig): string[] {
-    const errors: string[] = [];
+    const errors: string[] = []
 
     if (!config.llm) {
-      errors.push('llm: missing');
-      return errors;
+      errors.push('llm: missing')
+      return errors
     }
 
-    const llm = config.llm as unknown as Record<string, unknown>;
+    const llm = config.llm as unknown as Record<string, unknown>
 
     if (typeof llm.apiKey !== 'string' || !llm.apiKey) {
-      errors.push('llm.apiKey: must be a non-empty string');
+      errors.push('llm.apiKey: must be a non-empty string')
     }
 
     if (typeof llm.provider !== 'string' || !llm.provider) {
-      errors.push('llm.provider: must be a non-empty string');
+      errors.push('llm.provider: must be a non-empty string')
     }
 
     if (typeof llm.model !== 'string' || !llm.model) {
-      errors.push('llm.model: must be a non-empty string');
+      errors.push('llm.model: must be a non-empty string')
     }
 
-    if (typeof llm.timeout !== 'number' || (llm.timeout <= 0 && llm.timeout !== -1)) {
-      errors.push('llm.timeout: must be a positive number or -1 for no timeout');
+    if (
+      typeof llm.timeout !== 'number' ||
+      (llm.timeout <= 0 && llm.timeout !== -1)
+    ) {
+      errors.push('llm.timeout: must be a positive number or -1 for no timeout')
     }
 
-    const validDenyModes = ['auto-retry', 'ask-user', 'both'];
+    const validDenyModes = ['auto-retry', 'ask-user', 'both']
     if (!validDenyModes.includes(config.denyMode)) {
-      errors.push(`denyMode: must be one of 'auto-retry', 'ask-user', 'both', got '${config.denyMode}'`);
+      errors.push(
+        `denyMode: must be one of 'auto-retry', 'ask-user', 'both', got '${config.denyMode}'`
+      )
     }
 
     if (typeof config.escalation !== 'object' || config.escalation === null) {
-      errors.push('escalation: must be an object');
+      errors.push('escalation: must be an object')
     } else {
-      const esc = config.escalation as unknown as Record<string, unknown>;
-      if (typeof esc.consecutive !== 'number' || esc.consecutive <= 0 || !Number.isInteger(esc.consecutive)) {
-        errors.push('escalation.consecutive: must be a positive integer');
+      const esc = config.escalation as unknown as Record<string, unknown>
+      if (
+        typeof esc.consecutive !== 'number' ||
+        esc.consecutive <= 0 ||
+        !Number.isInteger(esc.consecutive)
+      ) {
+        errors.push('escalation.consecutive: must be a positive integer')
       }
-      if (typeof esc.total !== 'number' || esc.total <= 0 || !Number.isInteger(esc.total)) {
-        errors.push('escalation.total: must be a positive integer');
+      if (
+        typeof esc.total !== 'number' ||
+        esc.total <= 0 ||
+        !Number.isInteger(esc.total)
+      ) {
+        errors.push('escalation.total: must be a positive integer')
       }
     }
 
     if (!Array.isArray(config.blockRules)) {
-      errors.push('blockRules: must be an array');
+      errors.push('blockRules: must be an array')
     } else {
       config.blockRules.forEach((rule, index) => {
         if (typeof rule !== 'object' || rule === null) {
-          errors.push(`blockRules[${index}]: must be an object with id, pattern, and description`);
+          errors.push(
+            `blockRules[${index}]: must be an object with id, pattern, and description`
+          )
         } else {
-          const r = rule as Record<string, unknown>;
+          const r = rule as Record<string, unknown>
           if (typeof r.id === 'undefined' || r.id === null) {
-            errors.push(`blockRules[${index}]: missing required field 'id'`);
+            errors.push(`blockRules[${index}]: missing required field 'id'`)
           }
           if (typeof r.pattern === 'undefined' || r.pattern === null) {
-            errors.push(`blockRules[${index}]: missing required field 'pattern'`);
+            errors.push(
+              `blockRules[${index}]: missing required field 'pattern'`
+            )
           }
           if (typeof r.description === 'undefined' || r.description === null) {
-            errors.push(`blockRules[${index}]: missing required field 'description'`);
+            errors.push(
+              `blockRules[${index}]: missing required field 'description'`
+            )
           }
         }
-      });
+      })
     }
 
     if (!Array.isArray(config.allowExceptions)) {
-      errors.push('allowExceptions: must be an array');
+      errors.push('allowExceptions: must be an array')
     } else {
       config.allowExceptions.forEach((exc, index) => {
         if (typeof exc !== 'object' || exc === null) {
-          errors.push(`allowExceptions[${index}]: must be an object with id, agents, and tools`);
+          errors.push(
+            `allowExceptions[${index}]: must be an object with id, agents, and tools`
+          )
         } else {
-          const e = exc as Record<string, unknown>;
+          const e = exc as Record<string, unknown>
           if (typeof e.id === 'undefined' || e.id === null) {
-            errors.push(`allowExceptions[${index}]: missing required field 'id'`);
+            errors.push(
+              `allowExceptions[${index}]: missing required field 'id'`
+            )
           }
           if (typeof e.agents === 'undefined' || e.agents === null) {
-            errors.push(`allowExceptions[${index}]: missing required field 'agents'`);
+            errors.push(
+              `allowExceptions[${index}]: missing required field 'agents'`
+            )
           }
           if (typeof e.tools === 'undefined' || e.tools === null) {
-            errors.push(`allowExceptions[${index}]: missing required field 'tools'`);
+            errors.push(
+              `allowExceptions[${index}]: missing required field 'tools'`
+            )
           }
         }
-      });
+      })
     }
 
-    if (typeof config.trustBoundary !== 'object' || config.trustBoundary === null) {
-      errors.push('trustBoundary: must be an object');
+    if (
+      typeof config.trustBoundary !== 'object' ||
+      config.trustBoundary === null
+    ) {
+      errors.push('trustBoundary: must be an object')
     } else {
-      const tb = config.trustBoundary as unknown as Record<string, unknown>;
+      const tb = config.trustBoundary as unknown as Record<string, unknown>
       if (!Array.isArray(tb.protectedPaths)) {
-        errors.push('trustBoundary.protectedPaths: must be an array of strings');
+        errors.push('trustBoundary.protectedPaths: must be an array of strings')
       } else {
         tb.protectedPaths.forEach((p, index) => {
           if (typeof p !== 'string') {
-            errors.push(`trustBoundary.protectedPaths[${index}]: must be a string`);
+            errors.push(
+              `trustBoundary.protectedPaths[${index}]: must be a string`
+            )
           }
-        });
+        })
       }
       if (!Array.isArray(tb.protectedCommands)) {
-        errors.push('trustBoundary.protectedCommands: must be an array of strings');
+        errors.push(
+          'trustBoundary.protectedCommands: must be an array of strings'
+        )
       } else {
         tb.protectedCommands.forEach((c, index) => {
           if (typeof c !== 'string') {
-            errors.push(`trustBoundary.protectedCommands[${index}]: must be a string`);
+            errors.push(
+              `trustBoundary.protectedCommands[${index}]: must be a string`
+            )
           }
-        });
+        })
       }
     }
 
-    return errors;
+    return errors
   }
 
   isConfigValid(config: PluginConfig): boolean {
-    return this.validateConfig(config).length === 0;
+    return this.validateConfig(config).length === 0
   }
 
   private warnInvalidFields(config: PluginConfig): void {
-    const errors = this.validateConfig(config);
+    const errors = this.validateConfig(config)
     if (errors.length > 0) {
-      logWarning(`Config validation found ${errors.length} issue(s):`);
-      errors.forEach((error) => logWarning(`  - ${error}`));
+      logWarning(`Config validation found ${errors.length} issue(s):`)
+      errors.forEach((error) => logWarning(`  - ${error}`))
     }
   }
 
   initialize(): void {
-    this.config = this.loadFromPath(this.configPath);
-    this.warnInvalidFields(this.config);
+    this.config = this.loadFromPath(this.configPath)
+    this.warnInvalidFields(this.config)
   }
 }
