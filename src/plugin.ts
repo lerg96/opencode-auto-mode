@@ -200,7 +200,7 @@ function getConfig(): any {
   return configManager ? configManager.getConfig() : {}
 }
 
-async function callLLMWithModelFallback(
+async function callLLMWithFallback(
   model: string,
   fallbackModel: string,
   prompt: string
@@ -228,6 +228,7 @@ async function callLLM(prompt: string): Promise<string> {
   const llm = getConfig().llm || {}
   const rawLlm = configManager?.getRawLlmConfig()
 
+  const model = llm.model
   const hasModelConfigured =
     typeof rawLlm?.model === 'string' && rawLlm.model.length > 0
   const hasFallbackConfigured =
@@ -238,7 +239,6 @@ async function callLLM(prompt: string): Promise<string> {
     throw new Error('LLM model not configured')
   }
   if (!hasFallbackConfigured) {
-    const model = llm.model
     const result = await callLlmWithFallback({
       baseUrl: llm.baseUrl || 'http://localhost:18780/v1',
       apiKey: llm.apiKey || '',
@@ -250,9 +250,8 @@ async function callLLM(prompt: string): Promise<string> {
     return result.content
   }
 
-  const model = llm.model
   const fallbackModel = rawLlm.fallbackModel as string
-  return callLLMWithModelFallback(model, fallbackModel, prompt)
+  return callLLMWithFallback(model, fallbackModel, prompt)
 }
 
 let llmQueue: Promise<any> = Promise.resolve()

@@ -79,10 +79,9 @@ function isRetryableHttpError(status: number): boolean {
 }
 
 function isTimeoutError(e: unknown): boolean {
-  const err = e as Record<string, unknown> | undefined
-  if (!err) return false
-  const name = err.name as string | undefined
-  const msg = `${err.message || ''}`.toLowerCase()
+  if (!(e instanceof Error)) return false
+  const name = e.name
+  const msg = e.message.toLowerCase()
   return (
     name === 'AbortError' ||
     name === 'TimeoutError' ||
