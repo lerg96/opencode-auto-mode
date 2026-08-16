@@ -295,8 +295,13 @@ async function classifyCommand(
   const config = getConfig()
 
   if (isSecretSensitive(command)) {
-    log(`SECRET-GUARD: "${command.slice(0, 80)}" -> LLM (secret path/keywords)`)
-  } else if (isOpenCodeAllowed(command, sessionID)) {
+    log(`SECRET-GUARD: "${command.slice(0, 80)}" -> asking user (secret path/keywords)`)
+    return {
+      decision: 'ask',
+      reason: 'Secret keyword detected in command — user confirmation required',
+    }
+  }
+  if (isOpenCodeAllowed(command, sessionID)) {
     log(`ALLOW-LIST skip: "${command.slice(0, 80)}"`)
     return { decision: 'allow', reason: 'opencode permission allow-list' }
   }
