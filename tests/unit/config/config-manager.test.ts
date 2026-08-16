@@ -438,9 +438,9 @@ describe('ConfigManager - Extensible Rules Framework', () => {
       const manager = new ConfigManager('/test/config.jsonc')
       const config = manager.getConfig()
 
-      expect(config.allowExceptions.length).toBe(2)
-      expect((config.allowExceptions as any[])[0].id).toBe('AE-OVERRIDE-RM')
-      expect((config.allowExceptions as any[])[1].id).toBe('AE-OVERRIDE-SUDO')
+      expect(config.allowExceptions.length).toBe(4)
+      expect((config.allowExceptions as any[])[2].id).toBe('AE-OVERRIDE-RM')
+      expect((config.allowExceptions as any[])[3].id).toBe('AE-OVERRIDE-SUDO')
     })
   })
 
