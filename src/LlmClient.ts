@@ -75,18 +75,24 @@ function isSuccessResponse(res: Response): boolean {
 }
 
 function isRetryableHttpError(status: number): boolean {
-  return status >= 500 || status === 429 || status === 504
+  if (status === 408) return true
+  if (status >= 500) return true
+  if (status === 429) return true
+  return false
 }
 
 function isTimeoutError(e: unknown): boolean {
   if (!(e instanceof Error)) return false
-  const name = e.name
   const msg = e.message.toLowerCase()
-  return (
-    name === 'AbortError' ||
-    name === 'TimeoutError' ||
-    /abort|timeout|network|econnrefused/.test(msg)
-  )
+  const name = e.name.toLowerCase()
+  // Timeout-triggered abort: message will contain 'timeout'
+  if (name === 'aborterror' && msg.includes('timeout')) return true
+  // Explicit timeout / timed out errors
+  if (msg.includes('timeout') || msg.includes('timed out')) return true
+  // Network-level failures (connection refused, etc.)
+  if (name === 'timeouterror') return true
+  if (msg.includes('network') || msg.includes('econnrefused')) return true
+  return false
 }
 
 export async function callLlmWithFallback(
