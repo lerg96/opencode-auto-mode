@@ -76,8 +76,10 @@ function isSuccessResponse(res: Response): boolean {
 
 function isRetryableHttpError(status: number): boolean {
   if (status === 408) return true
-  if (status >= 500) return true
   if (status === 429) return true
+  if (status === 503) return true
+  if (status >= 500) return true
+  if (status === 504) return true
   return false
 }
 
