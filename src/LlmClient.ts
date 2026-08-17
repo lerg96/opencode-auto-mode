@@ -28,6 +28,7 @@ interface LlmCallParams {
 export interface LlmCallResult {
   content: string
   usedFallback: boolean
+  fallbackError?: string
 }
 
 function makeRequest(
@@ -113,6 +114,7 @@ export async function callLlmWithFallback(
   } = params
 
   let usedFallback = false
+  let fallbackError: string | undefined
 
   const attempt = async (m: string): Promise<Response> => {
     return withTimeout(
@@ -138,6 +140,7 @@ export async function callLlmWithFallback(
     if (isTimeoutError(e) && fallbackModel) {
       res = await attempt(fallbackModel)
       usedFallback = true
+      fallbackError = 'timeout'
     } else {
       throw e
     }
@@ -148,6 +151,7 @@ export async function callLlmWithFallback(
     if (isRetryableHttpError(status) && fallbackModel) {
       res = await attempt(fallbackModel)
       usedFallback = true
+      fallbackError = `http:${status}`
       if (!isSuccessResponse(res)) {
         throw new Error(
           `LLM API error: ${status} ${res.statusText} (and fallback also returned ${res.status})`
@@ -162,5 +166,6 @@ export async function callLlmWithFallback(
   return {
     content: data?.choices?.[0]?.message?.content || '',
     usedFallback,
+    fallbackError,
   }
 }

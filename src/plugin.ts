@@ -219,7 +219,7 @@ async function callLLMWithFallback(
     timeoutMs,
   })
   if (result.usedFallback) {
-    log(`LLM used fallback model: ${fallbackModel}`)
+    log(`LLM fallback: ${fallbackModel} (reason: ${result.fallbackError})`)
   }
   return result.content
 }
