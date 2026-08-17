@@ -10,6 +10,8 @@ export interface LLMProviderConfig {
   apiKeysRef: 'opencode-provider-config'
   /** Model name to use when the primary model fails (5xx, rate limit, timeout). Empty string or undefined disables fallback. */
   fallbackModel?: string
+  baseUrl: string
+  apiKey: string
 }
 
 export interface EscalationConfig {
@@ -44,6 +46,8 @@ export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   timeout: 5000, // -1 for no timeout (infinite)
   apiKeysRef: 'opencode-provider-config',
   fallbackModel: '',
+  baseUrl: '',
+  apiKey: '',
 }
 
 export const DEFAULT_FALLBACK_MODEL = 'mistral-large-latest'
