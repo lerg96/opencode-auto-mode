@@ -20,7 +20,7 @@ const LOG_FILE = path.join(HOME, '.config', 'opencode', 'auto-mode.log')
 
 function log(msg: string): void {
   const line = `[AutoMode][v${version}][${new Date().toISOString()}] ${msg}\n`
-  fs.appendFileSync(LOG_FILE, line)
+  fs.promises.appendFile(LOG_FILE, line, { flag: 'a' }).catch(() => {})
 }
 
 let configManager: ConfigManager | null = null
