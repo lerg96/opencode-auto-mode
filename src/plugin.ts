@@ -181,7 +181,7 @@ function normalizeRules(rules: any[], softRules?: string[]): any[] {
       r.type === 'pattern' &&
       typeof r.pattern === 'string' &&
       !r.pattern.startsWith('regex:') &&
-      /[\\()|+{}^$]/.test(r.pattern)
+      /[\\()|+{}^$\[\]?]/.test(r.pattern)
     ) {
       return { ...r, pattern: `regex:${r.pattern}` }
     }
