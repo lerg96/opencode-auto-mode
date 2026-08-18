@@ -359,6 +359,12 @@ export function isSuspiciousFileContent(content: string): boolean {
   return weakHits >= 2
 }
 
+function sanitizeForPrompt(text: string): string {
+  return text
+    .replace(/```/g, '` ` `')
+    .replace(/^-{3,}\s*$/gm, ' --- ')
+}
+
 export function buildClassifierPrompt(
   command: string,
   filePath: string | null,
@@ -391,7 +397,7 @@ export function buildClassifierPrompt(
       'Review the file contents and validate all security rules carefully:'
     )
     lines.push('---')
-    lines.push(fileContent)
+    lines.push(sanitizeForPrompt(fileContent))
     lines.push('---')
     lines.push(
       'CHECK the file for: obfuscated code, network calls, system command execution, file modification, credential access, dangerous module imports.'

@@ -390,6 +390,39 @@ describe('PatternMatcher', () => {
     })
   })
 
+  describe('match - catastrophic backtracking guard', () => {
+    it('rejects nested-quantifier patterns that could cause ReDoS', () => {
+      const toolCall = createToolCall({ arguments: { command: 'a'.repeat(120) } })
+      const rule = createBlockRule({ pattern: 'regex:(a+)+$' })
+      const result = matcher.match(toolCall, rule)
+      expect(result.matched).toBe(false)
+      expect(result.confidence).toBe('low')
+    })
+
+    it('rejects repeated-alternation patterns that could cause ReDoS', () => {
+      const toolCall = createToolCall({ arguments: { command: 'a'.repeat(120) } })
+      const rule = createBlockRule({ pattern: 'regex:(a|aa)+' })
+      const result = matcher.match(toolCall, rule)
+      expect(result.matched).toBe(false)
+      expect(result.confidence).toBe('low')
+    })
+
+    it('rejects double-quantifier patterns like (a*)*', () => {
+      const toolCall = createToolCall({ arguments: { command: 'a'.repeat(120) } })
+      const rule = createBlockRule({ pattern: 'regex:(a*)*$' })
+      const result = matcher.match(toolCall, rule)
+      expect(result.matched).toBe(false)
+      expect(result.confidence).toBe('low')
+    })
+
+    it('rejects the suspicious exception pattern path too', () => {
+      const toolCall = createToolCall({ arguments: { command: 'a'.repeat(120) } })
+      const exception = createAllowException({ pattern: 'regex:(a+)+$' })
+      const result = matcher.matchException(toolCall, exception)
+      expect(result).toBe(false)
+    })
+  })
+
   describe('matchCommandStructure', () => {
     it('should match command name without flags', () => {
       const toolCall = createToolCall({ arguments: { command: 'rm -rf /tmp' } })

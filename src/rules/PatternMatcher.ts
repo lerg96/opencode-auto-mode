@@ -12,7 +12,16 @@ const SUSPICIOUS_LENGTH_THRESHOLD = 100
 
 const QUANTIFIER_RE = /[+*()]/g
 
+const NESTED_QUANTIFIER_RE = /\([^()]*[+*?][^()]*\)\s*[+*?{]/
+const REPEATED_ALTERNATION_RE = /\([^)]*\|[^)]*\)\s*[+*?{]/
+
 function isSuspiciousPattern(pattern: string): boolean {
+  if (
+    NESTED_QUANTIFIER_RE.test(pattern) ||
+    REPEATED_ALTERNATION_RE.test(pattern)
+  ) {
+    return true
+  }
   if (pattern.length <= SUSPICIOUS_LENGTH_THRESHOLD) {
     return false
   }

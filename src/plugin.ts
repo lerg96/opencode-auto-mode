@@ -241,6 +241,15 @@ function isSimpleCommand(command: string): boolean {
   return !SHELL_SEPARATOR_RE.test(command)
 }
 
+function deobfuscateCommand(command: string): string {
+  return command.replace(/["'\\]/g, '')
+}
+
+function matchesSecretPattern(re: RegExp, text: string): boolean {
+  re.lastIndex = 0
+  return re.test(text)
+}
+
 const SECRET_ASSIGNMENT_RE =
   /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
 const SECRET_FLAG_RE =
@@ -262,12 +271,20 @@ function logCmd(text: string, length = 80): string {
 }
 
 function isSecretFileAccess(command: string): boolean {
-  return SECRET_FILE_PATTERN.test(command)
+  const forms = [command, deobfuscateCommand(command)]
+  return forms.some((c) => matchesSecretPattern(SECRET_FILE_PATTERN, c))
 }
 
 function isSecretSensitive(command: string): boolean {
-  return (
-    SECRET_FILE_PATTERN.test(command) || SECRET_KEYWORD_PATTERN.test(command)
+  const forms = [command, deobfuscateCommand(command)]
+  return forms.some(
+    (c) =>
+      matchesSecretPattern(SECRET_FILE_PATTERN, c) ||
+      matchesSecretPattern(SECRET_KEYWORD_PATTERN, c) ||
+      matchesSecretPattern(SECRET_ASSIGNMENT_RE, c) ||
+      matchesSecretPattern(SECRET_FLAG_RE, c) ||
+      matchesSecretPattern(BEARER_RE, c) ||
+      matchesSecretPattern(URL_CRED_RE, c)
   )
 }
 
@@ -513,6 +530,15 @@ async function classifyCommand(
       }
     }
   } else if (ruleResult.evaluation === 'allowed') {
+    if (!isSimpleCommand(command)) {
+      log(
+        `RULES exception matched compound command: "${logCmd(command)}" (${ruleResult.matchedException || 'exception'}) -> ask`
+      )
+      return {
+        decision: 'ask',
+        reason: 'Allow exception matched a compound command — user confirmation required',
+      }
+    }
     log(
       `RULES allow: "${logCmd(command)}" (${ruleResult.matchedException || 'exception'})`
     )
@@ -639,7 +665,7 @@ export const opencodeAutoMode = async (
         const result = await classifyCommand(command, sessionID)
         if (result.decision === 'deny') {
           recordDenied(sessionID, command)
-        } else {
+        } else if (result.decision === 'allow') {
           recordApproved(sessionID, command)
         }
         decisions.set(input.callID, result)
@@ -707,7 +733,7 @@ export const opencodeAutoMode = async (
           if (reclassified && sessionID) {
             if (result.decision === 'deny') {
               recordDenied(sessionID, command)
-            } else {
+            } else if (result.decision === 'allow') {
               recordApproved(sessionID, command)
             }
           }
