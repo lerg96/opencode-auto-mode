@@ -23,6 +23,10 @@ function writeOpenCodeConfig(
   )
 }
 
+function writeOpenCodeConfigRaw(config: Record<string, unknown>): void {
+  fs.writeFileSync(path.join(TMP_DIR, 'opencode.jsonc'), JSON.stringify(config))
+}
+
 async function loadPlugin(): Promise<PluginModule> {
   jest.resetModules()
   process.env.OPENCODE_CONFIG_DIR = TMP_DIR
@@ -34,6 +38,30 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
   afterEach(() => {
     jest.restoreAllMocks()
   })
+
+  const BASE_CONFIG = {
+    llm: {
+      enabled: true,
+      provider: 'openai',
+      baseUrl: 'http://localhost:9999/v1',
+      model: 'test-model',
+      fallbackModel: '',
+      timeout: 1000,
+    },
+    blockRules: [
+      {
+        id: 'BR-CRITICAL',
+        type: 'pattern',
+        pattern: 'regex:purge-data',
+        severity: 'critical',
+        description: 'test',
+        enabled: true,
+      },
+    ],
+    allowExceptions: [],
+    fallback: { onTimeout: 'ask-user', onError: 'deny' },
+    trustBoundary: { protectedPaths: [], protectedCommands: [] },
+  }
 
   describe('parseDecision', () => {
     it('parses plain JSON allow:true', async () => {
@@ -234,30 +262,6 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
   })
 
   describe('classifyCommand', () => {
-    const BASE_CONFIG = {
-      llm: {
-        enabled: true,
-        provider: 'openai',
-        baseUrl: 'http://localhost:9999/v1',
-        model: 'test-model',
-        fallbackModel: '',
-        timeout: 1000,
-      },
-      blockRules: [
-        {
-          id: 'BR-CRITICAL',
-          type: 'pattern',
-          pattern: 'regex:purge-data',
-          severity: 'critical',
-          description: 'test',
-          enabled: true,
-        },
-      ],
-      allowExceptions: [],
-      fallback: { onTimeout: 'ask-user', onError: 'deny' },
-      trustBoundary: { protectedPaths: [], protectedCommands: [] },
-    }
-
     function mockLLMResponse(text: string): void {
       jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
@@ -483,30 +487,6 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
   })
 
   describe('plugin hooks', () => {
-    const BASE_CONFIG = {
-      llm: {
-        enabled: true,
-        provider: 'openai',
-        baseUrl: 'http://localhost:9999/v1',
-        model: 'test-model',
-        fallbackModel: '',
-        timeout: 1000,
-      },
-      blockRules: [
-        {
-          id: 'BR-CRITICAL',
-          type: 'pattern',
-          pattern: 'regex:purge-data',
-          severity: 'critical',
-          description: 'test',
-          enabled: true,
-        },
-      ],
-      allowExceptions: [],
-      fallback: { onTimeout: 'ask-user', onError: 'deny' },
-      trustBoundary: { protectedPaths: [], protectedCommands: [] },
-    }
-
     function mockLLMResponse(text: string): void {
       jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
@@ -701,6 +681,188 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const state = M.getDenialState('s1')
       expect(state.consecutive).toBe(0)
       expect(state.total).toBe(2)
+    })
+  })
+
+  describe('config auto-reload', () => {
+    it('detects a rewrite even when the file mtime is unchanged', async () => {
+      writeConfig(BASE_CONFIG)
+      const cfgPath = path.join(TMP_DIR, 'auto-mode.jsonc')
+      const fixed = new Date(1577836800000)
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      expect(
+        (await M.classifyCommand('purge-data --all', 's1')).decision
+      ).toBe('deny')
+
+      writeConfig({
+        ...BASE_CONFIG,
+        blockRules: [
+          ...BASE_CONFIG.blockRules,
+          {
+            id: 'BR-NEW',
+            type: 'pattern',
+            pattern: 'regex:brand-new-command',
+            severity: 'critical',
+            description: 'test',
+            enabled: true,
+          },
+        ],
+      })
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const res = await M.classifyCommand('brand-new-command', 's1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toContain('BR-NEW')
+    })
+
+    it('defers reload when the config is mid-write (unparseable)', async () => {
+      writeConfig(BASE_CONFIG)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      fs.writeFileSync(path.join(TMP_DIR, 'auto-mode.jsonc'), '{ "broken": ')
+      const res = await M.classifyCommand('purge-data --all', 's1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toContain('BR-CRITICAL')
+    })
+  })
+
+  describe('session state bounding', () => {
+    it('caps the number of tracked sessions to avoid unbounded memory growth', async () => {
+      const M = await loadPlugin()
+      for (let i = 1; i <= 260; i++) M.recordDenied('sess-' + i)
+      expect(M.getSessionTrackingSize().sessions).toBeLessThanOrEqual(200)
+      expect(M.getDenialState('sess-260').total).toBe(1)
+      expect(M.getDenialState('sess-1')).toEqual({ consecutive: 0, total: 0 })
+    })
+
+    it('does not record denial state for empty session IDs', async () => {
+      writeConfig(BASE_CONFIG)
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({})
+      await hooks['tool.execute.before'](
+        { tool: 'bash', callID: 'c-empty', sessionID: '' },
+        { args: { command: 'purge-data --all' } }
+      )
+      expect(M.getDenialState('')).toEqual({ consecutive: 0, total: 0 })
+    })
+  })
+
+  describe('per-agent allow-list caching', () => {
+    it('does not leak agent-specific permissions across agents', async () => {
+      writeConfig(BASE_CONFIG)
+      writeOpenCodeConfigRaw({
+        permission: { Bash: { 'ls *': 'allow' } },
+        agent: { codex: { permission: { Bash: { 'npm *': 'allow' } } } },
+      })
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: '{"allow":false,"reason":"x"}' } }],
+          }),
+      } as any)
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({})
+      await hooks.event({
+        event: {
+          type: 'session.created',
+          properties: { info: { id: 'codex-s1', agent: 'codex' } },
+        },
+      })
+      expect((await M.classifyCommand('npm test', 'codex-s1')).decision).toBe(
+        'allow'
+      )
+      await hooks.event({
+        event: {
+          type: 'session.created',
+          properties: { info: { id: 'g1', agent: 'general' } },
+        },
+      })
+      const res = await M.classifyCommand('npm test', 'g1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toBe('x')
+      expect(res.reason).not.toContain('allow-list')
+    })
+  })
+
+  describe('trust boundary is enforced for file reads', () => {
+    it('does not feed file content to the LLM when the file is outside the trust boundary', async () => {
+      const protectedDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'am-prot-')
+      )
+      try {
+        const secretDir = path.join(protectedDir, 'secrets')
+        fs.mkdirSync(secretDir, { recursive: true })
+        fs.writeFileSync(
+          path.join(secretDir, 'script.js'),
+          'const TOKEN = "topsecret-leak";'
+        )
+        const junction = path.join(os.tmpdir(), `am-junction-${process.pid}`)
+        fs.rmSync(junction, { recursive: true, force: true })
+        fs.symlinkSync(secretDir, junction, 'junction')
+        const junctionScript = path.join(junction, 'script.js')
+
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: () =>
+            Promise.resolve({
+              choices: [{ message: { content: '{"allow":true,"reason":"ok"}' } }],
+            }),
+        } as any)
+        writeConfig({
+          ...BASE_CONFIG,
+          trustBoundary: {
+            protectedPaths: [secretDir + path.sep],
+            protectedCommands: [],
+          },
+        })
+        const M = await loadPlugin()
+        await M.opencodeAutoMode({})
+        const res = await M.classifyCommand(
+          `node ${junctionScript}`,
+          's1'
+        )
+        expect(res.decision).toBe('allow')
+        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+        expect(body.messages[0].content).not.toContain('topsecret-leak')
+        expect(body.messages[0].content).not.toContain('FILE CONTEXT')
+      } finally {
+        fs.rmSync(protectedDir, { recursive: true, force: true })
+        fs.rmSync(path.join(os.tmpdir(), `am-junction-${process.pid}`), {
+          recursive: true,
+          force: true,
+        })
+      }
+    })
+  })
+
+  describe('secret redaction in logs', () => {
+    it('redacts secrets when logging unparseable LLM responses', async () => {
+      writeConfig(BASE_CONFIG)
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({
+            choices: [
+              { message: { content: 'not json API_KEY=abc123def' } },
+            ],
+          }),
+      } as any)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('git status', 's1')
+      expect(res.decision).toBe('ask')
+      const calls = (fs.promises.appendFile as jest.Mock).mock.calls
+      const joined = calls.map((c: any[]) => String(c[1])).join('\n')
+      expect(joined).not.toContain('abc123def')
+      expect(joined).toContain('***REDACTED***')
     })
   })
 })

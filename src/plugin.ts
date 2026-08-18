@@ -1,10 +1,13 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import * as crypto from 'node:crypto'
 import { parse } from 'jsonc-parser'
 import { ConfigManager } from './config/ConfigManager.js'
 import { PatternMatcher } from './rules/PatternMatcher.js'
 import { callLlmWithFallback } from './LlmClient.js'
 import { RuleEvaluator } from './rules/RuleEvaluator.js'
+import { SessionState } from './state/SessionState.js'
+import { EscalationService } from './escalation/EscalationService.js'
 import {
   extractFileFromCommand,
   isSafeFile,
@@ -16,6 +19,8 @@ import { version } from '../package.json'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || ''
 const LOG_FILE = path.join(HOME, '.config', 'opencode', 'auto-mode.log')
+const MAX_SESSION_TRACKING = 200
+const MAX_AGENT_TRACKING = 200
 
 function log(msg: string): void {
   const line = `[AutoMode][v${version}][${new Date().toISOString()}] ${msg}\n`
@@ -28,50 +33,106 @@ let client: any = null
 let initialized = false
 const decisions = new Map<string, { decision: string; reason: string }>()
 const agentBySession = new Map<string, string>()
-const denialBySession = new Map<string, SessionDenialState>()
-let opencodeAllowList: string[] | null = null
-let allowListLoadedAt = 0
-let configMtime = 0
+const sessionStates = new Map<string, SessionState>()
+let opencodeAllowListByAgent: Map<string, { patterns: string[]; at: number }> =
+  new Map()
+let configSignature = ''
 
 interface SessionDenialState {
   consecutive: number
   total: number
 }
 
-function getDenialState(sessionID: string): SessionDenialState {
-  let state = denialBySession.get(sessionID)
+function touchMap<T>(
+  map: Map<string, T>,
+  key: string,
+  value: T,
+  cap: number
+): void {
+  if (map.size >= cap) {
+    const oldest = map.keys().next().value
+    if (oldest !== undefined) map.delete(oldest)
+  }
+  map.delete(key)
+  map.set(key, value)
+}
+
+function getSessionState(sessionID: string): SessionState {
+  let state = sessionStates.get(sessionID)
   if (!state) {
-    state = { consecutive: 0, total: 0 }
-    denialBySession.set(sessionID, state)
+    state = new SessionState()
+    touchMap(sessionStates, sessionID, state, MAX_SESSION_TRACKING)
+  } else {
+    sessionStates.delete(sessionID)
+    sessionStates.set(sessionID, state)
   }
   return state
 }
 
-function recordDenied(sessionID: string): void {
-  const state = getDenialState(sessionID)
-  state.consecutive++
-  state.total++
+function getDenialState(sessionID: string): SessionDenialState {
+  const counters = getSessionState(sessionID).getDenialCounters()
+  return { consecutive: counters.consecutive, total: counters.total }
 }
 
-function recordApproved(sessionID: string): void {
-  getDenialState(sessionID).consecutive = 0
+function recordDenied(sessionID: string, command = ''): void {
+  if (!sessionID) return
+  getSessionState(sessionID).incrementDenial(
+    {
+      toolName: 'Bash',
+      arguments: { command },
+      context: {
+        agentName: agentBySession.get(sessionID) || 'general',
+        workingDirectory: '',
+        sessionId: sessionID,
+      },
+    },
+    'Denied by auto-mode'
+  )
+}
+
+function recordApproved(sessionID: string, command = ''): void {
+  if (!sessionID) return
+  getSessionState(sessionID).incrementAllow(
+    {
+      toolName: 'Bash',
+      arguments: { command },
+      context: {
+        agentName: agentBySession.get(sessionID) || 'general',
+        workingDirectory: '',
+        sessionId: sessionID,
+      },
+    },
+    'Approved by auto-mode'
+  )
+}
+
+function computeConfigSignature(): string | null {
+  try {
+    const raw = fs.readFileSync(getConfigPath(), 'utf8')
+    const errors: any[] = []
+    parse(raw, errors, { allowTrailingComma: true })
+    const hasErrors = errors.some((e) => e && typeof e === 'object')
+    if (hasErrors) {
+      log('config parse error — deferring reload')
+      return null
+    }
+    return crypto.createHash('sha1').update(raw).digest('hex')
+  } catch (e: any) {
+    log(`config signature error: ${e?.message || e}`)
+    return null
+  }
 }
 
 function maybeReloadConfig(): void {
   if (!configManager) return
-  try {
-    const mtime = fs.statSync(getConfigPath()).mtimeMs
-    if (mtime !== configMtime) {
-      configMtime = mtime
-      configManager.reload(getConfigPath())
-      const config = configManager.getConfig()
-      log(
-        `Config reloaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
-      )
-    }
-  } catch (e: any) {
-    log(`config reload error: ${e?.message || e}`)
-  }
+  const sig = computeConfigSignature()
+  if (sig === null || sig === configSignature) return
+  configManager.reload(getConfigPath())
+  configSignature = sig
+  const config = configManager.getConfig()
+  log(
+    `Config reloaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
+  )
 }
 
 function getConfigDir(): string {
@@ -105,16 +166,20 @@ function loadOpenCodeAllowList(agentName: string): string[] {
   const configPath = getOpenCodeConfigPath()
   try {
     const mtime = fs.statSync(configPath).mtimeMs
-    if (opencodeAllowList && mtime === allowListLoadedAt)
-      return opencodeAllowList
+    const cached = opencodeAllowListByAgent.get(agentName)
+    if (cached && mtime === cached.at) return cached.patterns
     const raw = fs.readFileSync(configPath, 'utf8')
     const parsed = parse(raw)
     const patterns: string[] = []
     collectAllowPatterns(parsed?.permission, patterns)
     collectAllowPatterns(parsed?.agent?.[agentName]?.permission, patterns)
     const unique = [...new Set(patterns)]
-    opencodeAllowList = unique
-    allowListLoadedAt = mtime
+    touchMap(
+      opencodeAllowListByAgent,
+      agentName,
+      { patterns: unique, at: mtime },
+      MAX_AGENT_TRACKING
+    )
     log(
       `allow-list loaded: ${unique.length} patterns (agent=${agentName}) [${unique.slice(0, 12).join(', ')}${unique.length > 12 ? ', ...' : ''}]`
     )
@@ -229,7 +294,18 @@ export {
   getDenialState,
   recordDenied,
   recordApproved,
+  getSessionTrackingSize,
   classifyCommand,
+}
+
+function getSessionTrackingSize(): {
+  sessions: number
+  agents: number
+} {
+  return {
+    sessions: sessionStates.size,
+    agents: agentBySession.size,
+  }
 }
 
 export { callLlmWithFallback } from './LlmClient.js'
@@ -366,7 +442,9 @@ function parseDecision(text: string): { decision: string; reason: string } {
     }
   } catch {
     log(
-      `Parse failed, raw: ${String(text).slice(0, 300).replace(/\n/g, '\\n')}`
+      `Parse failed, raw: ${redact(String(text))
+        .slice(0, 300)
+        .replace(/\n/g, '\\n')}`
     )
   }
   return { decision: 'ask', reason: 'Unparseable LLM response' }
@@ -476,7 +554,7 @@ async function classifyCommand(
     const filePath = extractFileFromCommand(command)
     let fileContent: string | null = null
     if (filePath) {
-      fileContent = readSafely(filePath)
+      fileContent = readSafely(filePath, config.trustBoundary)
       if (fileContent && isSuspiciousFileContent(fileContent)) {
         log(
           `SUSPICIOUS FILE DETECTED: "${filePath}" — potential security risk, flagging for LLM review`
@@ -488,7 +566,7 @@ async function classifyCommand(
     )
     const result = parseDecision(text)
     log(
-      `LLM classify: "${logCmd(command)}" (file=${filePath || 'none'}) -> ${result.decision} (${result.reason})`
+      `LLM classify: "${logCmd(command)}" (file=${filePath || 'none'}) -> ${result.decision} (${redact(result.reason)})`
     )
     return result
   } catch (e: any) {
@@ -536,9 +614,7 @@ export const opencodeAutoMode = async (
     client = ctx?.client
     configManager = new ConfigManager(getConfigPath())
     configManager.load()
-    try {
-      configMtime = fs.statSync(getConfigPath()).mtimeMs
-    } catch {}
+    configSignature = computeConfigSignature() || ''
     ruleEvaluator = new RuleEvaluator(new PatternMatcher() as any)
     const config = configManager.getConfig()
     log(
@@ -562,9 +638,9 @@ export const opencodeAutoMode = async (
         const sessionID = input.sessionID || ''
         const result = await classifyCommand(command, sessionID)
         if (result.decision === 'deny') {
-          recordDenied(sessionID)
+          recordDenied(sessionID, command)
         } else {
-          recordApproved(sessionID)
+          recordApproved(sessionID, command)
         }
         decisions.set(input.callID, result)
         if (decisions.size > 200) {
@@ -584,16 +660,21 @@ export const opencodeAutoMode = async (
         if (evt.type === 'session.created') {
           const info = evt.properties?.info
           if (info?.id && info?.agent) {
-            agentBySession.set(info.id, info.agent)
+            touchMap(
+              agentBySession,
+              info.id,
+              info.agent,
+              MAX_AGENT_TRACKING
+            )
           }
-          if (info?.id) denialBySession.delete(info.id)
+          if (info?.id) sessionStates.delete(info.id)
           log(`session.created: agent=${info?.agent} session=${info?.id}`)
         }
 
         if (evt.type === 'session.deleted') {
           const info = evt.properties?.info
           if (info?.id) {
-            denialBySession.delete(info.id)
+            sessionStates.delete(info.id)
             agentBySession.delete(info.id)
             log(`session.deleted: session=${info?.id}`)
           }
@@ -610,16 +691,11 @@ export const opencodeAutoMode = async (
           )
 
           const config = getConfig()
-          const escalation = config.escalation || { consecutive: 3, total: 20 }
 
           let result = callID ? decisions.get(callID) : undefined
-          if (!result && command) {
+          const reclassified = !result && command
+          if (reclassified) {
             result = await classifyCommand(command, sessionID)
-            if (result.decision === 'deny') {
-              recordDenied(sessionID)
-            } else {
-              recordApproved(sessionID)
-            }
           }
           if (callID) decisions.delete(callID)
 
@@ -628,18 +704,23 @@ export const opencodeAutoMode = async (
             return
           }
 
-          const state = getDenialState(sessionID)
-          if (
-            state.consecutive >= escalation.consecutive &&
-            result.decision === 'deny'
-          ) {
-            log(`permission.asked: escalation threshold reached, asking user`)
-            return
+          if (reclassified && sessionID) {
+            if (result.decision === 'deny') {
+              recordDenied(sessionID, command)
+            } else {
+              recordApproved(sessionID, command)
+            }
           }
 
-          if (state.total >= escalation.total && result.decision === 'deny') {
-            log(`permission.asked: total denial threshold reached, asking user`)
-            return
+          if (result.decision === 'deny' && sessionID) {
+            const escalationService = new EscalationService(
+              getSessionState(sessionID),
+              config
+            )
+            if (escalationService.checkThresholds().escalated) {
+              log(`permission.asked: escalation threshold reached, asking user`)
+              return
+            }
           }
 
           if (result.decision === 'allow') {
