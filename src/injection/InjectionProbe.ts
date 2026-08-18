@@ -29,11 +29,16 @@ export class InjectionProbe {
       }
     }
 
+    const normalized = toolResult.replace(
+      /[\u200b-\u200d\u2060\ufeff\u0000]/g,
+      ' '
+    )
+
     const allPatterns = [...this.builtInPatterns, ...this.customPatterns]
 
     for (const pattern of allPatterns) {
       pattern.pattern.lastIndex = 0
-      if (pattern.pattern.test(toolResult)) {
+      if (pattern.pattern.test(normalized)) {
         return {
           injected: true,
           pattern: pattern.description,
