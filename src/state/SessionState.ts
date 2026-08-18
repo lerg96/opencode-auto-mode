@@ -12,13 +12,11 @@ export class SessionState {
   private consecutiveDenials: number
   private totalDenials: number
   private recentDecisions: ClassificationDecisionRecord[]
-  private lastDecisionWasDenial: boolean
 
   constructor() {
     this.consecutiveDenials = 0
     this.totalDenials = 0
     this.recentDecisions = []
-    this.lastDecisionWasDenial = false
   }
 
   incrementDenial(
@@ -29,7 +27,6 @@ export class SessionState {
   ): void {
     this.consecutiveDenials++
     this.totalDenials++
-    this.lastDecisionWasDenial = true
 
     const command = extractCommand(toolCall)
     const record = createDecisionRecord(
@@ -53,7 +50,6 @@ export class SessionState {
     stage: 1 | 2 | 'rule-eval' = 1
   ): void {
     this.consecutiveDenials = 0
-    this.lastDecisionWasDenial = false
 
     const command = extractCommand(toolCall)
     const record = createDecisionRecord(
@@ -81,8 +77,9 @@ export class SessionState {
   getRecentDecisions(limit?: number): ClassificationDecisionRecord[] {
     const count =
       limit !== undefined
-        ? Math.min(limit, this.recentDecisions.length)
+        ? Math.max(0, Math.min(limit, this.recentDecisions.length))
         : this.recentDecisions.length
+    if (count === 0) return []
     return this.recentDecisions.slice(-count)
   }
 
@@ -98,7 +95,6 @@ export class SessionState {
     this.consecutiveDenials = 0
     this.totalDenials = 0
     this.recentDecisions = []
-    this.lastDecisionWasDenial = false
   }
 
   resetConsecutiveDenials(): void {

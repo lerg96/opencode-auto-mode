@@ -50,8 +50,24 @@ describe('extractFileFromCommand', () => {
     expect(extractFileFromCommand('node src/file.ts')).toBe('src/file.ts')
   })
 
-  it('should extract the last file argument when path has spaces', () => {
-    expect(extractFileFromCommand('node "my file.js"')).toBe('file.js')
+  it('should extract quoted file arguments with spaces', () => {
+    expect(extractFileFromCommand('node "my file.js"')).toBe('my file.js')
+  })
+
+  it('should extract the first file argument after an interpreter', () => {
+    expect(extractFileFromCommand('python app.py data.csv')).toBe('app.py')
+  })
+
+  it('should ignore redirect targets when extracting the file', () => {
+    expect(extractFileFromCommand('node script.js > out.js')).toBe('script.js')
+    expect(extractFileFromCommand('node script.js >> out.js')).toBe('script.js')
+  })
+
+  it('should skip values of message flags', () => {
+    expect(extractFileFromCommand('git commit -m "add file.ts"')).toBeNull()
+    expect(
+      extractFileFromCommand('git commit --message "docs file.md"')
+    ).toBeNull()
   })
 
   it('should extract with flags before file', () => {
@@ -158,6 +174,54 @@ describe('isSafeFile', () => {
     const file = path.join(awsDir, 'config.js')
     fs.writeFileSync(file, 'aws config')
     expect(isSafeFile(file)).toBe(false)
+  })
+
+  it('should not block directories that merely contain env as a substring', () => {
+    const dir = path.join(tmpDir, 'environmental')
+    fs.mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, 'helper.js')
+    fs.writeFileSync(file, 'const x = 1')
+    expect(isSafeFile(file)).toBe(true)
+  })
+
+  it('should block credential-named files in ordinary directories', () => {
+    const password = path.join(tmpDir, 'password.js')
+    fs.writeFileSync(password, 'const pw = 1')
+    expect(isSafeFile(password)).toBe(false)
+
+    const token = path.join(tmpDir, 'tokens.json')
+    fs.writeFileSync(token, '{}')
+    expect(isSafeFile(token)).toBe(false)
+
+    const key = path.join(tmpDir, 'private-key.pem')
+    fs.writeFileSync(key, 'x')
+    expect(isSafeFile(key)).toBe(false)
+  })
+
+  it('should reject files matching protected trust-boundary paths', () => {
+    const protectedDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'autotest-prot-')
+    )
+    const file = path.join(protectedDir, 'test.js')
+    fs.writeFileSync(file, 'x')
+    try {
+      const trustBoundary = {
+        protectedPaths: [protectedDir + path.sep],
+        protectedCommands: [],
+      }
+      expect(isSafeFile(file, trustBoundary)).toBe(false)
+      expect(isSafeFile(path.join(tmpDir, 'inside.js'), trustBoundary)).toBe(
+        true
+      )
+    } finally {
+      fs.rmSync(protectedDir, { recursive: true })
+    }
+  })
+
+  it('should block files under protected roots such as /etc', () => {
+    if (fs.existsSync('/etc/resolv.conf')) {
+      expect(isSafeFile('/etc/resolv.conf')).toBe(false)
+    }
   })
 })
 
@@ -275,6 +339,20 @@ describe('isSuspiciousFileContent', () => {
 
   it('should be case-insensitive for patterns', () => {
     expect(isSuspiciousFileContent("EVAL('code')")).toBe(true)
+  })
+
+  it('should not flag relative-URL fetch calls', () => {
+    expect(isSuspiciousFileContent("fetch('/api/data')")).toBe(false)
+  })
+
+  it('should not flag bare Buffer references', () => {
+    expect(isSuspiciousFileContent('const size = Buffer.byteLength(x)')).toBe(
+      false
+    )
+  })
+
+  it('should not flag axios as a bare word without calls', () => {
+    expect(isSuspiciousFileContent('// axios docs')).toBe(false)
   })
 })
 

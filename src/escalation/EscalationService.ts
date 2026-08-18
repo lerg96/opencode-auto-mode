@@ -14,8 +14,19 @@ export class EscalationService {
   checkThresholds(): EscalationResult {
     const counters = this.sessionState.getDenialCounters()
 
-    // Check consecutive threshold
-    if (counters.consecutive >= this.config.escalation.consecutive) {
+    const consecutiveHit =
+      counters.consecutive >= this.config.escalation.consecutive
+    const totalHit = counters.total >= this.config.escalation.total
+
+    if (consecutiveHit && totalHit) {
+      return this.createEscalationResult(
+        counters.consecutive,
+        counters.total,
+        'consecutive+total'
+      )
+    }
+
+    if (consecutiveHit) {
       return this.createEscalationResult(
         counters.consecutive,
         counters.total,
@@ -23,8 +34,7 @@ export class EscalationService {
       )
     }
 
-    // Check total threshold
-    if (counters.total >= this.config.escalation.total) {
+    if (totalHit) {
       return this.createEscalationResult(
         counters.consecutive,
         counters.total,
@@ -50,7 +60,6 @@ export class EscalationService {
 
   processDenial(): void {
     this.sessionState.resetConsecutiveDenials()
-    this.sessionState.resetTotalDenials()
   }
 
   getThresholds(): { consecutive: number; total: number } {

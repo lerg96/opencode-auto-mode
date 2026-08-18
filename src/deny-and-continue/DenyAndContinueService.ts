@@ -92,12 +92,12 @@ export class DenyAndContinueService {
     }
   }
 
-  async handleDeny(
+  handleDeny(
     classificationResult: ClassificationResult
-  ): Promise<DenyAndContinueResult> {
+  ): DenyAndContinueResult {
     return this.strategy.handleDeny(
       classificationResult,
-      this.getEffectiveConfig(),
+      this.config,
       this.sessionState
     )
   }
@@ -118,10 +118,8 @@ export class DenyAndContinueService {
       case 'both':
         this.strategy = new BothStrategy(this.config.escalation.consecutive)
         break
+      default:
+        this.strategy = new AutoRetryStrategy()
     }
-  }
-
-  private getEffectiveConfig(): PluginConfig {
-    return this.config
   }
 }

@@ -2,6 +2,18 @@ import { ToolCall } from '../types/ToolCall'
 import { PermissionResult } from '../types/PermissionTypes'
 import { PluginConfig } from '../types/PluginConfig'
 
+/**
+ * Static allow-list pre-checker.
+ *
+ * This service applies a fixed, hardcoded map of agent/tool permissions BEFORE
+ * the classifier runs. It is intentionally NOT the source of truth for
+ * OpenCode's real permission configuration: the live allow-list (parsing the
+ * user's `opencode.jsonc` `permission` block) is handled by
+ * `loadOpenCodeAllowList` in `src/plugin.ts` (recently refactored). This class
+ * only supplies the conservative default permissions used when no explicit
+ * allow-list entry matches a tool call.
+ */
+
 const EXPLICIT_ALLOW_AGENT_PERMISSIONS: Record<string, string[]> = {
   general: [
     'Read',
