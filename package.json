@@ -24,7 +24,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --clean && tsc --emitDeclarationOnly",
+    "build": "tsup src/index.ts --format esm,cjs --clean && node scripts/copy-rules.mjs && tsc --emitDeclarationOnly",
     "test": "jest --coverage",
     "test:unit": "jest tests/unit/",
     "test:integration": "jest tests/integration/",

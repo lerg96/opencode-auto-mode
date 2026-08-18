@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 import { parse } from 'jsonc-parser'
 import {
   PluginConfig,
@@ -21,14 +22,37 @@ function logWarning(_message: string): void {}
 
 function logInfo(_message: string): void {}
 
+function resolveModuleDir(): string {
+  const candidates: string[] = []
+  try {
+    candidates.push(path.dirname(fileURLToPath(import.meta.url)))
+  } catch {
+    // import.meta unavailable in this environment
+  }
+  if (typeof __dirname !== 'undefined') {
+    candidates.push(__dirname)
+  }
+  candidates.push(process.cwd())
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, 'default-block-rules.jsonc'))) {
+      return candidate
+    }
+  }
+  return candidates[0] ?? process.cwd()
+}
+
 function loadDefaultBlockRules(): BlockRule[] {
-  const rulesPath = path.join(__dirname, 'default-block-rules.jsonc')
+  const rulesPath = path.join(
+    resolveModuleDir(),
+    'default-block-rules.jsonc'
+  )
   try {
     if (fs.existsSync(rulesPath)) {
       const content = fs.readFileSync(rulesPath, 'utf-8')
       const errors: any[] = []
-      const result = parse(content, errors) as unknown
-      if (errors.length > 0) {
+      const result = parse(content, errors, { allowTrailingComma: true }) as unknown
+      const realErrors = errors.filter((e) => e && typeof e === 'object')
+      if (realErrors.length > 0) {
         logWarning('Errors parsing default block rules, using bundled defaults')
       } else if (Array.isArray(result)) {
         const filtered = result.filter((item): item is BlockRule => {
@@ -328,13 +352,17 @@ function loadDefaultBlockRules(): BlockRule[] {
 }
 
 function loadDefaultAllowExceptions(): AllowException[] {
-  const rulesPath = path.join(__dirname, 'default-block-rules.jsonc')
+  const rulesPath = path.join(
+    resolveModuleDir(),
+    'default-block-rules.jsonc'
+  )
   try {
     if (fs.existsSync(rulesPath)) {
       const content = fs.readFileSync(rulesPath, 'utf-8')
       const errors: any[] = []
-      const result = parse(content, errors)
-      if (errors.length > 0) {
+      const result = parse(content, errors, { allowTrailingComma: true })
+      const realErrors = errors.filter((e) => e && typeof e === 'object')
+      if (realErrors.length > 0) {
         logWarning(
           'Errors parsing default allow exceptions, using bundled defaults'
         )
@@ -410,7 +438,7 @@ export class ConfigManager {
 
       const content = fs.readFileSync(configPath, 'utf-8')
       const errors: any[] = []
-      const parsed = parse(content, errors) as unknown
+      const parsed = parse(content, errors, { allowTrailingComma: true }) as unknown
 
       // Capture raw llm config before applying defaults for runtime checks
       const parsedObj =
@@ -422,8 +450,9 @@ export class ConfigManager {
           ? (parsedObj.llm as Record<string, unknown>)
           : undefined
 
-      if (errors.length > 0) {
-        const errorMessages = errors.map((e) => {
+      const realErrors = errors.filter((e) => e && typeof e === 'object')
+      if (realErrors.length > 0) {
+        const errorMessages = realErrors.map((e) => {
           return `Parse error at offset ${e.offset}: code ${e.code}`
         })
         logWarning(
