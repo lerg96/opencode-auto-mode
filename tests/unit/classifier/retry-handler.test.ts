@@ -1,7 +1,4 @@
-import {
-  RetryHandler,
-  type RetryHandlerConfig,
-} from '../../../src/classifier/RetryHandler'
+import { RetryHandler } from '../../../src/classifier/RetryHandler'
 
 describe('RetryHandler', () => {
   describe('constructor defaults', () => {
@@ -221,6 +218,40 @@ describe('RetryHandler', () => {
     it('should use custom base delay', () => {
       const rh = new RetryHandler(undefined, 500)
       expect(rh.getBaseDelay()).toBe(500)
+    })
+
+    it('should clamp maxRetries to at least 1 when 0 is passed', () => {
+      const rh = new RetryHandler(0)
+      expect(rh.getMaxRetries()).toBe(1)
+    })
+
+    it('should clamp maxRetries to at least 1 when negative is passed', () => {
+      const rh = new RetryHandler(-5)
+      expect(rh.getMaxRetries()).toBe(1)
+    })
+
+    it('should execute at least one attempt even with maxRetries=0', async () => {
+      const rh = new RetryHandler(0)
+      let attempts = 0
+
+      const result = await rh.executeWithRetry(async () => {
+        attempts++
+        return 'ok'
+      })
+
+      expect(result).toBe('ok')
+      expect(attempts).toBe(1)
+    })
+
+    it('should throw an error after one attempt when maxRetries=0 and operation fails', async () => {
+      const rh = new RetryHandler(0)
+      const testError = new Error('boom')
+
+      await expect(
+        rh.executeWithRetry(async () => {
+          throw testError
+        })
+      ).rejects.toBe(testError)
     })
   })
 })

@@ -26,75 +26,65 @@ export class LLMProviderAbstraction {
   }
 
   async classifyStage1(prompt: string): Promise<Stage1Result> {
-    const startTime = Date.now()
-    this.startTimeMs = startTime
+    this.startTimeMs = Date.now()
 
-    try {
-      return await this.circuitBreaker.withCircuitBreaker(async () => {
-        return await this.retryHandler.executeWithRetry(
-          async () => {
-            const controller = this.timeoutManager.createStage1AbortController()
-            try {
-              const result = await this.callLLMAPI(
-                prompt,
-                'stage1',
-                controller.signal
+    return await this.circuitBreaker.withCircuitBreaker(async () => {
+      return await this.retryHandler.executeWithRetry(
+        async () => {
+          const controller = this.timeoutManager.createStage1AbortController()
+          try {
+            const result = await this.callLLMAPI(
+              prompt,
+              'stage1',
+              controller.signal
+            )
+            this.applyLatency(result)
+            return result as Stage1Result
+          } catch (error) {
+            if (this.timeoutManager.isTimeoutError(error)) {
+              throw new Error(
+                `Stage 1 timeout after ${this.timeoutManager.getStage1Timeout()}ms`
               )
-              this.applyLatency(result)
-              return result as Stage1Result
-            } catch (error) {
-              if (this.timeoutManager.isTimeoutError(error)) {
-                throw new Error(
-                  `Stage 1 timeout after ${this.timeoutManager.getStage1Timeout()}ms`
-                )
-              }
-              throw error
-            } finally {
-              this.timeoutManager.clearAbortController(controller)
             }
-          },
-          (err) => !this.fallbackExecutor.isTimeoutError(err)
-        )
-      })
-    } catch (error) {
-      throw error
-    }
+            throw error
+          } finally {
+            this.timeoutManager.clearAbortController(controller)
+          }
+        },
+        (err) => !this.fallbackExecutor.isTimeoutError(err)
+      )
+    })
   }
 
   async classifyStage2(prompt: string): Promise<Stage2Result> {
-    const startTime = Date.now()
-    this.startTimeMs = startTime
+    this.startTimeMs = Date.now()
 
-    try {
-      return await this.circuitBreaker.withCircuitBreaker(async () => {
-        return await this.retryHandler.executeWithRetry(
-          async () => {
-            const controller = this.timeoutManager.createStage2AbortController()
-            try {
-              const result = await this.callLLMAPI(
-                prompt,
-                'stage2',
-                controller.signal
+    return await this.circuitBreaker.withCircuitBreaker(async () => {
+      return await this.retryHandler.executeWithRetry(
+        async () => {
+          const controller = this.timeoutManager.createStage2AbortController()
+          try {
+            const result = await this.callLLMAPI(
+              prompt,
+              'stage2',
+              controller.signal
+            )
+            this.applyLatency(result)
+            return result as Stage2Result
+          } catch (error) {
+            if (this.timeoutManager.isTimeoutError(error)) {
+              throw new Error(
+                `Stage 2 timeout after ${this.timeoutManager.getStage2Timeout()}ms`
               )
-              this.applyLatency(result)
-              return result as Stage2Result
-            } catch (error) {
-              if (this.timeoutManager.isTimeoutError(error)) {
-                throw new Error(
-                  `Stage 2 timeout after ${this.timeoutManager.getStage2Timeout()}ms`
-                )
-              }
-              throw error
-            } finally {
-              this.timeoutManager.clearAbortController(controller)
             }
-          },
-          (err) => !this.fallbackExecutor.isTimeoutError(err)
-        )
-      })
-    } catch (error) {
-      throw error
-    }
+            throw error
+          } finally {
+            this.timeoutManager.clearAbortController(controller)
+          }
+        },
+        (err) => !this.fallbackExecutor.isTimeoutError(err)
+      )
+    })
   }
 
   private async callLLMAPI(

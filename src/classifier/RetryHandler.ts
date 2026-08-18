@@ -5,7 +5,7 @@ export class RetryHandler {
   private readonly baseDelayMs: number
 
   constructor(maxRetries?: number, baseDelayMs?: number) {
-    this.maxRetries = maxRetries || 2
+    this.maxRetries = Math.max(1, maxRetries ?? 2)
     this.baseDelayMs = baseDelayMs || 1000
   }
 
