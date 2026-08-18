@@ -183,19 +183,20 @@ export class TranscriptClassifier {
     const cmd = (toolCall.arguments.command as string) || ''
 
     let prompt = `You are a security classifier. Evaluate this tool call and predict whether to BLOCK or ALLOW.\n\n`
-    prompt += `Tool: ${toolCall.toolName}\n`
+    prompt += `Tool: ${this.escapeContent(toolCall.toolName)}\n`
     if (cmd) {
-      prompt += `Command: ${cmd}\n`
+      prompt += `<<COMMAND>>\n${this.escapeContent(cmd)}\n<<END>>\n`
     }
 
     if (transcript.userMessages.length > 0) {
-      prompt += `\nRecent user intent:\n`
+      prompt += `\n<<RECENT_USER_INTENT>>\n`
       for (const msg of transcript.userMessages.slice(-3)) {
-        prompt += `- ${msg.content}\n`
+        prompt += `- ${this.escapeContent(msg.content)}\n`
       }
+      prompt += `<<END>>\n`
     }
 
-    prompt += `\nRespond with a single word: BLOCK or ALLOW.`
+    prompt += `Respond with a single word: BLOCK or ALLOW.`
     return prompt
   }
 
@@ -208,45 +209,48 @@ export class TranscriptClassifier {
     const cmd = (toolCall.arguments.command as string) || ''
 
     let prompt = `You are a security classifier performing chain-of-thought reasoning.\n\n`
-    prompt += `Tool: ${toolCall.toolName}\n`
+    prompt += `Tool: ${this.escapeContent(toolCall.toolName)}\n`
     if (cmd) {
-      prompt += `Command: ${cmd}\n`
+      prompt += `<<COMMAND>>\n${this.escapeContent(cmd)}\n<<END>>\n`
     }
 
     if (transcript.userMessages.length > 0) {
-      prompt += `\nRecent user intent:\n`
+      prompt += `\n<<RECENT_USER_INTENT>>\n`
       for (const msg of transcript.userMessages.slice(-3)) {
-        prompt += `- ${msg.content}\n`
+        prompt += `- ${this.escapeContent(msg.content)}\n`
       }
+      prompt += `<<END>>\n`
     }
 
     if (blockRules.length > 0) {
-      prompt += `\nActive block rules:\n`
+      prompt += `\n<<BLOCK_RULES>>\n`
       for (const rule of blockRules.slice(0, 10)) {
-        prompt += `- ${rule.id}: ${rule.description} (pattern: ${rule.pattern})\n`
+        prompt += `- ${this.escapeContent(rule.id)}: ${this.escapeContent(rule.description)} (pattern: ${this.escapeContent(rule.pattern)})\n`
       }
+      prompt += `<<END>>\n`
     }
 
     if (allowExceptions.length > 0) {
-      prompt += `\nAllow exceptions:\n`
+      prompt += `\n<<ALLOW_EXCEPTIONS>>\n`
       for (const exc of allowExceptions) {
-        prompt += `- ${exc.id}: ${exc.description} (pattern: ${exc.pattern})\n`
+        prompt += `- ${this.escapeContent(exc.id)}: ${this.escapeContent(exc.description)} (pattern: ${this.escapeContent(exc.pattern)})\n`
       }
+      prompt += `<<END>>\n`
     }
 
     prompt += `\nProvide your reasoning, then conclude with ALLOW or DENY.`
     return prompt
   }
 
+  private escapeContent(input: string): string {
+    return input.replace(/[\\]/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+  }
+
   private handleError(error: unknown): ClassificationResult {
     if (this.fallbackExecutor.isTimeoutError(error)) {
-      return this.fallbackExecutor.executeOnTimeout(
-        error instanceof Error ? error : new Error(String(error))
-      )
+      return this.fallbackExecutor.executeOnTimeout(error)
     }
-    return this.fallbackExecutor.executeOnError(
-      error instanceof Error ? error : new Error(String(error))
-    )
+    return this.fallbackExecutor.executeOnError(error)
   }
 
   private handleStage1Error(error: unknown): ClassificationResult {

@@ -6,6 +6,7 @@ import { TimeoutManager } from './TimeoutManager'
 import { CircuitBreaker, CircuitState } from './CircuitBreaker'
 import { RetryHandler } from './RetryHandler'
 import { FallbackExecutor } from './FallbackExecutor'
+import { LlmHttpError, LlmParseError } from '../LlmClient'
 
 export class LLMProviderAbstraction {
   private readonly config: PluginConfig
@@ -51,7 +52,7 @@ export class LLMProviderAbstraction {
             this.timeoutManager.clearAbortController(controller)
           }
         },
-        (err) => !this.fallbackExecutor.isTimeoutError(err)
+        (err) => !this.isNonRetryableError(err)
       )
     })
   }
@@ -82,7 +83,7 @@ export class LLMProviderAbstraction {
             this.timeoutManager.clearAbortController(controller)
           }
         },
-        (err) => !this.fallbackExecutor.isTimeoutError(err)
+        (err) => !this.isNonRetryableError(err)
       )
     })
   }
@@ -108,13 +109,13 @@ export class LLMProviderAbstraction {
     stage: 'stage1' | 'stage2',
     signal?: AbortSignal
   ): Promise<unknown> {
-    const controller = signal ? { signal } : new AbortController()
-    const timeout = this.config.llm.timeout
+    const hasExternalSignal = !!signal
     let timeoutId: ReturnType<typeof setTimeout> | undefined
-    if (timeout > 0) {
-      timeoutId = setTimeout(() => {
-        if (!signal) (controller as AbortController).abort()
-      }, timeout)
+
+    if (!hasExternalSignal && this.config.llm.timeout > 0) {
+      const controller = new AbortController()
+      timeoutId = setTimeout(() => controller.abort(), this.config.llm.timeout)
+      signal = controller.signal
     }
 
     try {
@@ -130,18 +131,25 @@ export class LLMProviderAbstraction {
           max_tokens: stage === 'stage1' ? 1 : 1024,
           messages: [{ role: 'user', content: prompt }],
         }),
-        signal: controller.signal,
+        signal,
       })
 
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(
-          `Anthropic API error: ${response.status} ${response.statusText}`
+        throw new LlmHttpError(
+          response.status,
+          `Anthropic API error: ${response.statusText}`
         )
       }
 
-      const data = await response.json()
+      let data: unknown
+      try {
+        data = await response.json()
+      } catch (raw: unknown) {
+        const msg = raw instanceof Error ? raw.message : String(raw ?? 'unknown')
+        throw new LlmParseError(msg)
+      }
       return this.parseAnthropicResponse(data, stage)
     } catch (error) {
       clearTimeout(timeoutId)
@@ -154,13 +162,13 @@ export class LLMProviderAbstraction {
     stage: 'stage1' | 'stage2',
     signal?: AbortSignal
   ): Promise<unknown> {
-    const controller = signal ? { signal } : new AbortController()
-    const timeout = this.config.llm.timeout
+    const hasExternalSignal = !!signal
     let timeoutId: ReturnType<typeof setTimeout> | undefined
-    if (timeout > 0) {
-      timeoutId = setTimeout(() => {
-        if (!signal) (controller as AbortController).abort()
-      }, timeout)
+
+    if (!hasExternalSignal && this.config.llm.timeout > 0) {
+      const controller = new AbortController()
+      timeoutId = setTimeout(() => controller.abort(), this.config.llm.timeout)
+      signal = controller.signal
     }
 
     try {
@@ -176,17 +184,24 @@ export class LLMProviderAbstraction {
           max_tokens: stage === 'stage1' ? 1 : 1024,
           messages: [{ role: 'user', content: prompt }],
         }),
-        signal: controller.signal,
+        signal,
       })
 
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText}`
+        throw new LlmHttpError(
+          response.status,
+          `OpenAI API error: ${response.statusText}`
         )
       }
-      const data = await response.json()
+      let data: unknown
+      try {
+        data = await response.json()
+      } catch (raw: unknown) {
+        const msg = raw instanceof Error ? raw.message : String(raw ?? 'unknown')
+        throw new LlmParseError(msg)
+      }
       return this.parseOpenAIResponse(data, stage)
     } catch (error) {
       clearTimeout(timeoutId)
@@ -199,13 +214,13 @@ export class LLMProviderAbstraction {
     stage: 'stage1' | 'stage2',
     signal?: AbortSignal
   ): Promise<unknown> {
-    const controller = signal ? { signal } : new AbortController()
-    const timeout = this.config.llm.timeout
+    const hasExternalSignal = !!signal
     let timeoutId: ReturnType<typeof setTimeout> | undefined
-    if (timeout > 0) {
-      timeoutId = setTimeout(() => {
-        if (!signal) (controller as AbortController).abort()
-      }, timeout)
+
+    if (!hasExternalSignal && this.config.llm.timeout > 0) {
+      const controller = new AbortController()
+      timeoutId = setTimeout(() => controller.abort(), this.config.llm.timeout)
+      signal = controller.signal
     }
 
     try {
@@ -230,17 +245,24 @@ export class LLMProviderAbstraction {
           max_tokens: stage === 'stage1' ? 1 : 1024,
           messages: [{ role: 'user', content: prompt }],
         }),
-        signal: controller.signal,
+        signal,
       })
 
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(
-          `Local model API error: ${response.status} ${response.statusText}`
+        throw new LlmHttpError(
+          response.status,
+          `Local model API error: ${response.statusText}`
         )
       }
-      const data = await response.json()
+      let data: unknown
+      try {
+        data = await response.json()
+      } catch (raw: unknown) {
+        const msg = raw instanceof Error ? raw.message : String(raw ?? 'unknown')
+        throw new LlmParseError(msg)
+      }
       const result = this.parseOpenAIResponse(data, stage)
       this.applyLatency(result)
       return result
@@ -337,6 +359,16 @@ export class LLMProviderAbstraction {
       }
     }
     throw new Error('Malformed OpenAI response')
+  }
+
+  private isNonRetryableError(error: unknown): boolean {
+    if (this.fallbackExecutor.isTimeoutError(error)) return true
+    if (error instanceof Error && error.name === 'LlmParseError') return true
+    if (error instanceof Error && error.name === 'LlmHttpError') {
+      const status = (error as { status: number }).status
+      return status !== 429 && status !== 408 && status !== 500 && status !== 502 && status !== 503 && status !== 504
+    }
+    return false
   }
 
   getCircuitBreaker(): CircuitBreaker {

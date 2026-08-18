@@ -1,4 +1,4 @@
-import { callLlmWithFallback, LlmCallResult } from '../../src/LlmClient'
+import { callLlmWithFallback, LlmCallResult, LlmHttpError } from '../../src/LlmClient'
 
 describe('LLM Fallback (LlmClient)', () => {
   afterEach(() => {
@@ -182,9 +182,7 @@ describe('LLM Fallback (LlmClient)', () => {
           timeoutMs: 5000,
           fetchImpl: fetchMock as any,
         })
-      ).rejects.toThrow(
-        'LLM API error: 500 HTTP 503 (and fallback also returned 503)'
-      )
+      ).rejects.toThrow(LlmHttpError)
 
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })

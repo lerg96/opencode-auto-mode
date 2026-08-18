@@ -41,8 +41,18 @@ export class RetryHandler {
       if (message.includes('abort') || message.includes('timeout')) {
         return true
       }
-      if (message.includes('network') || message.includes('ECONNREFUSED')) {
+      if (message.includes('network') || message.includes('econnrefused')) {
         return true
+      }
+      if (error.name === 'LlmParseError') {
+        return false
+      }
+      if (error.name === 'LlmHttpError' && (error as { status: number }).status) {
+        const status = (error as { status: number }).status
+        if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 408) {
+          return true
+        }
+        return false
       }
     }
     return false
