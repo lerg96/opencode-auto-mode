@@ -182,6 +182,72 @@ describe('validateRequiredFields', () => {
     const invalid = { llm: { provider: 'invalid', model: 'test' } }
     expect(validateRequiredFields(invalid)).toBe(false)
   })
+
+  // Edge cases for llm field
+  it('should return true for valid config with empty llm object containing required fields', () => {
+    const valid = {
+      llm: {
+        provider: 'openai',
+        model: 'test-model',
+      },
+    }
+    expect(validateRequiredFields(valid)).toBe(true)
+  })
+
+  it('should return false for llm as null', () => {
+    const invalid = { llm: null }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+
+  it('should return false for llm as empty object without required properties', () => {
+    const invalid = { llm: {} }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+
+  it('should return true when llm has timeout 0', () => {
+    const valid = {
+      llm: {
+        provider: 'anthropic',
+        model: 'test',
+        timeout: 0,
+      },
+    }
+    expect(validateRequiredFields(valid)).toBe(true)
+  })
+
+  it('should return true when llm has negative timeout', () => {
+    const valid = {
+      llm: {
+        provider: 'anthropic',
+        model: 'test',
+        timeout: -1,
+      },
+    }
+    expect(validateRequiredFields(valid)).toBe(true)
+  })
+
+  it('should return false when llm.provider is null', () => {
+    const invalid = { llm: { model: 'test', provider: null } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+
+  it('should return false when llm.provider is empty string', () => {
+    const invalid = { llm: { model: 'test', provider: '' } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+
+  it('should return false when llm.model is empty string', () => {
+    const invalid = { llm: { provider: 'anthropic', model: '' } }
+    expect(validateRequiredFields(invalid)).toBe(false)
+  })
+
+  it('should return false when config is a number', () => {
+    expect(validateRequiredFields(42)).toBe(false)
+  })
+
+  it('should return false when config is an array', () => {
+    expect(validateRequiredFields([])).toBe(false)
+  })
 })
 
 describe('applyDefaults', () => {

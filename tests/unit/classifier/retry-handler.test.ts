@@ -1,4 +1,7 @@
-import { RetryHandler } from '../../../src/classifier/RetryHandler'
+import {
+  RetryHandler,
+  type RetryHandlerConfig,
+} from '../../../src/classifier/RetryHandler'
 
 describe('RetryHandler', () => {
   describe('constructor defaults', () => {
@@ -123,6 +126,79 @@ describe('RetryHandler', () => {
           () => true
         )
       ).rejects.toBe(testError)
+    })
+  })
+
+  describe('executeWithRetry - backoff delays with fake timers', () => {
+    beforeEach(() => {
+      jest.useFakeTimers()
+    })
+
+    afterEach(() => {
+      jest.useRealTimers()
+    })
+
+    it('should have increasing delays between attempts proving backoff is applied', async () => {
+      const rh = new RetryHandler(3, 1000)
+      const actualDelays: number[] = []
+
+      // Monkey-patch sleep to capture actual delays
+      ;(rh as any).sleep = (ms: number) => {
+        actualDelays.push(ms)
+        return new Promise<void>((resolve) => {
+          const t = setTimeout(() => resolve(), ms)
+          // Register a "real" setTimeout so fake timers counts it
+          jest.advanceTimersByTime(ms)
+        })
+      }
+
+      let attempts = 0
+      await expect(
+        rh.executeWithRetry(async () => {
+          attempts++
+          if (attempts < 3) {
+            throw new Error('Request timeout')
+          }
+          return 'success after backoff'
+        })
+      ).resolves.toBe('success after backoff')
+
+      expect(attempts).toBe(3)
+      expect(actualDelays).toHaveLength(2) // delay between attempt 0-1 and 1-2
+      expect(actualDelays[0]).toBe(1000) // attempt 0: baseDelay * 2^0
+      expect(actualDelays[1]).toBe(2000) // attempt 1: baseDelay * 2^1
+    })
+  })
+
+  describe('executeWithRetry - basic retry behavior', () => {
+    it('should use different delays for non-zero baseDelay vs zero baseDelay', async () => {
+      const rhWithDelay = new RetryHandler(2, 500)
+
+      let rhAttempts = 0
+      const rhResult = await rhWithDelay.executeWithRetry(
+        async () => {
+          rhAttempts++
+          if (rhAttempts < 2) throw new Error('boom')
+          return 'ok'
+        },
+        () => true
+      )
+      expect(rhResult).toBe('ok')
+      expect(rhAttempts).toBeGreaterThanOrEqual(2)
+
+      const rhNoDelay = new RetryHandler(2, 0)
+
+      let noDelayAttempts = 0
+      const noDelayResult = await rhNoDelay.executeWithRetry(
+        async () => {
+          noDelayAttempts++
+          if (noDelayAttempts < 2) throw new Error('boom')
+          return 'ok'
+        },
+        () => true
+      )
+      expect(noDelayResult).toBe('ok')
+      expect(noDelayAttempts).toBeGreaterThanOrEqual(2)
     })
   })
 

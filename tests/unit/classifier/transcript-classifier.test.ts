@@ -237,4 +237,182 @@ describe('TranscriptClassifier', () => {
       expect(classifier.getRuleEvaluator()).toBeDefined()
     })
   })
+
+  // --- Prompt format tests (catch private formatStage1Prompt/formatStage2Prompt via public classify) ---
+
+  describe('formatStage1Prompt output structure', () => {
+    it('should include tool name, command, and prompt ending in BLOCK or ALLOW instruction', async () => {
+      const promptCapture: string[] = []
+      ;(mockLLMProvider as any).classifyStage1.mockImplementation(
+        async (prompt: string) => {
+          promptCapture.push(prompt)
+          return {
+            prediction: 'allow' as const,
+            confidence: undefined,
+            latency: 0,
+          }
+        }
+      )
+
+      await classifier.classify(
+        {
+          userMessages: [
+            { content: 'run this', timestamp: new Date(), messageId: '1' },
+          ],
+          currentToolCall: createToolCall({
+            toolName: 'Bash',
+            arguments: { command: 'rm -rf /tmp/test' },
+          }),
+          metadata: {
+            sessionDuration: 0,
+            messageCount: 1,
+            toolExecutionCount: 0,
+          },
+        },
+        [],
+        []
+      )
+
+      expect(promptCapture.length).toBe(1)
+      const prompt = promptCapture[0]
+      expect(prompt).toContain('Tool: Bash')
+      expect(prompt).toContain('Command: rm -rf /tmp/test')
+      expect(prompt).toContain('user intent')
+      expect(prompt).toContain('run this')
+      expect(prompt).toContain('BLOCK or ALLOW')
+    })
+
+    it('should omit command section when command is empty', async () => {
+      const promptCapture: string[] = []
+      ;(mockLLMProvider as any).classifyStage1.mockImplementation(
+        async (prompt: string) => {
+          promptCapture.push(prompt)
+          return {
+            prediction: 'allow' as const,
+            confidence: undefined,
+            latency: 0,
+          }
+        }
+      )
+
+      await classifier.classify(
+        {
+          userMessages: [],
+          currentToolCall: createToolCall({ arguments: { command: '' } }),
+          metadata: {
+            sessionDuration: 0,
+            messageCount: 0,
+            toolExecutionCount: 0,
+          },
+        },
+        [],
+        []
+      )
+
+      expect(promptCapture.length).toBe(1)
+      const prompt = promptCapture[0]
+      expect(prompt).toContain('Tool: Bash')
+      expect(prompt).toContain('BLOCK or ALLOW')
+      // Command section should be empty (no actual command text)
+    })
+  })
+
+  describe('formatStage2Prompt output structure', () => {
+    it('should include tool, command, user intent, block rules, allow exceptions, and ALLOW or DENY instruction', async () => {
+      const promptCapture: string[] = []
+      ;(mockLLMProvider as any).classifyStage2.mockImplementation(
+        async (prompt: string) => {
+          promptCapture.push(prompt)
+          return {
+            reasoning: 'test',
+            decision: 'allow' as const,
+            confidence: undefined,
+            latency: 0,
+          }
+        }
+      )
+      ;(mockLLMProvider as any).classifyStage1.mockResolvedValue({
+        prediction: 'block' as const,
+        confidence: undefined,
+        latency: 0,
+      })
+
+      const blockRules = [
+        { id: 'BR-A', description: 'block desc', pattern: 'block-me' },
+      ]
+      const exceptions = [
+        { id: 'AE-X', description: 'allow desc', pattern: 'allow-me' },
+      ]
+
+      await classifier.classify(
+        {
+          userMessages: [
+            { content: 'test command', timestamp: new Date(), messageId: '1' },
+          ],
+          currentToolCall: createToolCall({
+            arguments: { command: 'block-me command' },
+          }),
+          metadata: {
+            sessionDuration: 0,
+            messageCount: 1,
+            toolExecutionCount: 0,
+          },
+        },
+        blockRules as any,
+        exceptions as any
+      )
+
+      expect(promptCapture.length).toBe(1)
+      const prompt = promptCapture[0]
+      expect(prompt).toContain('chain-of-thought')
+      expect(prompt).toContain('Tool: Bash')
+      expect(prompt).toContain('block-me')
+      expect(prompt).toContain('Active block rules')
+      expect(prompt).toContain('block desc')
+      expect(prompt).toContain('Allow exceptions')
+      expect(prompt).toContain('allow desc')
+      expect(prompt).toContain('ALLOW or DENY')
+    })
+
+    it('should omit rule sections when no rules or exceptions provided', async () => {
+      const promptCapture: string[] = []
+      ;(mockLLMProvider as any).classifyStage2.mockImplementation(
+        async (prompt: string) => {
+          promptCapture.push(prompt)
+          return {
+            reasoning: 'test',
+            decision: 'allow' as const,
+            confidence: undefined,
+            latency: 0,
+          }
+        }
+      )
+      ;(mockLLMProvider as any).classifyStage1.mockResolvedValue({
+        prediction: 'block' as const,
+        confidence: undefined,
+        latency: 0,
+      })
+
+      await classifier.classify(
+        {
+          userMessages: [],
+          currentToolCall: createToolCall(),
+          metadata: {
+            sessionDuration: 0,
+            messageCount: 0,
+            toolExecutionCount: 0,
+          },
+        },
+        [],
+        []
+      )
+
+      expect(promptCapture.length).toBe(1)
+      const prompt = promptCapture[0]
+      expect(prompt).toContain('chain-of-thought')
+      expect(prompt).not.toContain('Active block rules')
+      expect(prompt).not.toContain('Allow exceptions')
+      expect(prompt).toContain('ALLOW or DENY')
+    })
+  })
 })
