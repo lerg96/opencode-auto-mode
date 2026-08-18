@@ -163,7 +163,7 @@ function loadDefaultBlockRules(): BlockRule[] {
     {
       id: 'BR-013',
       type: 'pattern',
-      pattern: '|\\s*chmod\\s+777',
+      pattern: '\\s*chmod\\s+777',
       category: 'permissions',
       description: 'World-writable permissions',
       severity: 'high',

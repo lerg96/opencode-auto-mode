@@ -177,19 +177,19 @@ function isSimpleCommand(command: string): boolean {
 }
 
 const SECRET_ASSIGNMENT_RE =
-  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth(?:orization)?|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
+  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
 const SECRET_FLAG_RE =
-  /(--[a-z][\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
+  /(--[\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
 const BEARER_RE = /(Authorization\s*:\s*Bearer\s+)[^\s"';&|`$]+/gi
 const URL_CRED_RE = /(\bhttps?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi
 
 function redact(text: string): string {
   if (!text) return text
   return text
-    .replace(SECRET_ASSIGNMENT_RE, '$1=***REDACTED***')
-    .replace(SECRET_FLAG_RE, '$1***REDACTED***')
     .replace(BEARER_RE, '$1***REDACTED***')
     .replace(URL_CRED_RE, '$1***REDACTED***@')
+    .replace(SECRET_ASSIGNMENT_RE, '$1=***REDACTED***')
+    .replace(SECRET_FLAG_RE, '$1***REDACTED***')
 }
 
 function logCmd(text: string, length = 80): string {
@@ -215,6 +215,21 @@ export {
   isSafeFile,
   readSafely,
   isSuspiciousFileContent,
+  parseDecision,
+  redact,
+  logCmd,
+  isSecretFileAccess,
+  isSecretSensitive,
+  isSimpleCommand,
+  normalizePatterns,
+  normalizeRules,
+  allowListed,
+  patternToRegex,
+  loadOpenCodeAllowList,
+  getDenialState,
+  recordDenied,
+  recordApproved,
+  classifyCommand,
 }
 
 export { callLlmWithFallback } from './LlmClient.js'
@@ -341,7 +356,7 @@ function callLLMSerialized(prompt: string): Promise<string> {
 function parseDecision(text: string): { decision: string; reason: string } {
   try {
     // Strip all code fence patterns: ```json ... ```, ```python ... ```, ``` ... ```
-    const cleaned = text.replace(/```\w*[\s\S]*?```/g, '').trim()
+    const cleaned = text.replace(/```\w*\s*([\s\S]*?)\s*```/g, '$1').trim()
     const json = JSON.parse(cleaned)
     if (typeof json.allow === 'boolean') {
       return {
