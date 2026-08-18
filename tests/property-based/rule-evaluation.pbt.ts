@@ -159,7 +159,9 @@ describe('RuleEvaluator - Property Based Tests', () => {
       fc.assert(
         fc.property(
           toolCallArb,
-          fc.string().filter((s) => s.length > 0),
+          fc
+            .string()
+            .filter((s) => s.length > 0 && !/[;&|`\n]|\$\s*\(/.test(s)),
           (toolCall, sharedPattern) => {
             const toolCallWithPath = createToolCall({
               arguments: { command: `${sharedPattern} extra args` },

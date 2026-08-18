@@ -8,6 +8,24 @@ import {
 import { PatternMatcher } from './PatternMatcher'
 import { TrustBoundaryConfig } from '../types/PluginConfig'
 
+const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
+const PATH_BOUNDARY_RE = /[\s;&|`(){}"'<>/\\]/
+
+function isProtectedPathMatch(command: string, protectedPath: string): boolean {
+  if (protectedPath.endsWith('/') || protectedPath.endsWith('\\')) {
+    return command.includes(protectedPath)
+  }
+  let index = command.indexOf(protectedPath)
+  while (index !== -1) {
+    const next = command.charAt(index + protectedPath.length)
+    if (next === '' || PATH_BOUNDARY_RE.test(next)) {
+      return true
+    }
+    index = command.indexOf(protectedPath, index + protectedPath.length)
+  }
+  return false
+}
+
 export class RuleEvaluator {
   private patternMatcher: PatternMatcher
 
@@ -89,7 +107,7 @@ export class RuleEvaluator {
 
     // Check protected paths
     for (const protectedPath of trustBoundary.protectedPaths) {
-      if (cmd.includes(protectedPath)) {
+      if (isProtectedPathMatch(cmd, protectedPath)) {
         return {
           evaluation: 'blocked',
           matchedRule: `TB-PATH-${protectedPath.replace(/[^\w]/g, '_')}`,
@@ -99,7 +117,7 @@ export class RuleEvaluator {
     }
 
     // Check protected commands
-    const segments = cmd.split(/[;&|`\n]|\$\s*\(/)
+    const segments = cmd.split(SHELL_SEPARATOR_RE)
     for (const protectedCmd of trustBoundary.protectedCommands) {
       const protectedName = protectedCmd.trim()
 

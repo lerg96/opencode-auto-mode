@@ -49,6 +49,73 @@ describe('RuleEvaluator', () => {
     evaluator = new RuleEvaluator()
   })
 
+  describe('evaluate - allow exceptions must cover compound commands', () => {
+    it('should NOT exempt a compound command when the exception covers only one segment', () => {
+      const toolCall = createToolCall({
+        arguments: {
+          command:
+            'git push --force-with-lease && git push --force origin main',
+        },
+      })
+      const blockRule = createBlockRule({
+        id: 'BR-038',
+        pattern: 'regex:git\\s+push\\s+--force',
+        severity: 'high',
+      })
+      const exception = createAllowException({
+        id: 'AE-006',
+        pattern: 'regex:git\\s+push\\s+--force-with-lease',
+      })
+
+      const result = evaluator.evaluate(toolCall, [blockRule], [exception])
+
+      expect(result.evaluation).toBe('blocked')
+      expect(result.matchedRule).toBe('BR-038')
+    })
+
+    it('should exempt a compound command when the exception covers every segment', () => {
+      const toolCall = createToolCall({
+        arguments: {
+          command: 'git push --force-with-lease && git push --force-with-lease',
+        },
+      })
+      const blockRule = createBlockRule({
+        id: 'BR-038',
+        pattern: 'regex:git\\s+push\\s+--force',
+        severity: 'high',
+      })
+      const exception = createAllowException({
+        id: 'AE-006',
+        pattern: 'regex:git\\s+push\\s+--force-with-lease',
+      })
+
+      const result = evaluator.evaluate(toolCall, [blockRule], [exception])
+
+      expect(result.evaluation).toBe('allowed')
+      expect(result.matchedException).toBe('AE-006')
+    })
+
+    it('should exempt a single command matched by an exception', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'git push --force-with-lease origin main' },
+      })
+      const blockRule = createBlockRule({
+        id: 'BR-038',
+        pattern: 'regex:git\\s+push\\s+--force',
+        severity: 'high',
+      })
+      const exception = createAllowException({
+        id: 'AE-006',
+        pattern: 'regex:git\\s+push\\s+--force-with-lease',
+      })
+
+      const result = evaluator.evaluate(toolCall, [blockRule], [exception])
+
+      expect(result.evaluation).toBe('allowed')
+      expect(result.matchedException).toBe('AE-006')
+    })
+  })
+
   describe('evaluate - allow exceptions have highest precedence', () => {
     it('should return allowed when exception matches even if block rule also matches', () => {
       const toolCall = createToolCall({
@@ -195,6 +262,50 @@ describe('RuleEvaluator', () => {
       const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
 
       expect(result).toBeNull()
+    })
+
+    it('should not flag ~/.env.production when only ~/.env is protected', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'cat ~/.env.production' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).toBeNull()
+    })
+
+    it('should not flag ~/.env.backup when only ~/.env is protected', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'cat ~/.env.backup' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).toBeNull()
+    })
+
+    it('should flag ~/.env followed by whitespace', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'cat ~/.env --dry-run' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-PATH')
+    })
+
+    it('should match protected paths ending in a separator as a path prefix', () => {
+      const prefixBoundary: TrustBoundaryConfig = {
+        protectedPaths: ['/var/secret/', '~/.env/'],
+        protectedCommands: [],
+      }
+      const toolCall = createToolCall({
+        arguments: { command: 'cat /var/secret/keys.txt' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, prefixBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.reasoning).toContain('/var/secret/')
     })
   })
 

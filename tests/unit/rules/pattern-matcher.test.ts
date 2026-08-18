@@ -388,6 +388,36 @@ describe('PatternMatcher', () => {
 
       expect(result).toBe(true)
     })
+
+    it('should not match a compound command when the exception covers only one segment', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'safe-cleanup && rm -rf /tmp' },
+      })
+      const exception = createAllowException({ pattern: 'safe-cleanup' })
+      const result = matcher.matchException(toolCall, exception)
+
+      expect(result).toBe(false)
+    })
+
+    it('should match a compound command when the exception covers every segment', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'safe-cleanup && safe-cleanup-extra' },
+      })
+      const exception = createAllowException({ pattern: 'safe-cleanup' })
+      const result = matcher.matchException(toolCall, exception)
+
+      expect(result).toBe(true)
+    })
+
+    it('should match a single-segment command with an exception', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'safe-cleanup --all' },
+      })
+      const exception = createAllowException({ pattern: 'safe-cleanup' })
+      const result = matcher.matchException(toolCall, exception)
+
+      expect(result).toBe(true)
+    })
   })
 
   describe('matchCommandStructure', () => {

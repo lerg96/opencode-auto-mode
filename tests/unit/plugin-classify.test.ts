@@ -6,10 +6,7 @@ type PluginModule = typeof import('../../src/plugin')
 
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-mode-test-'))
 
-function writeConfig(
-  config: Record<string, unknown>,
-  dir = TMP_DIR
-): void {
+function writeConfig(config: Record<string, unknown>, dir = TMP_DIR): void {
   fs.writeFileSync(path.join(dir, 'auto-mode.jsonc'), JSON.stringify(config))
 }
 
@@ -222,7 +219,12 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const M = await loadPlugin()
       const rules = [
         { id: 'R2', type: 'pattern', pattern: 'git checkout [' },
-        { id: 'R3', type: 'pattern', pattern: 'git checkout [', severity: 'high' },
+        {
+          id: 'R3',
+          type: 'pattern',
+          pattern: 'git checkout [',
+          severity: 'high',
+        },
       ]
       const out = M.normalizePatterns(rules, 'blockRule')
       expect(out[0].pattern).toBe('git checkout [')
@@ -258,6 +260,32 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const M = await loadPlugin()
       expect(M.normalizePatterns(undefined, 'blockRule')).toEqual([])
       expect(M.normalizeRules(null, [])).toEqual([])
+    })
+
+    it('converts glob-style patterns to regex', async () => {
+      const M = await loadPlugin()
+      const rules = [
+        { id: 'G1', type: 'pattern', pattern: '*.sh' },
+        { id: 'G2', type: 'pattern', pattern: '*sh*' },
+      ]
+      const out = M.normalizePatterns(rules, 'blockRule')
+      expect(out[0].pattern).toBe('regex:.*\\.sh')
+      expect(out[1].pattern).toBe('regex:.*sh.*')
+    })
+
+    it('leaves regex metachar patterns alone and applies globs only to plain wildcard patterns', async () => {
+      const M = await loadPlugin()
+      const rules = [
+        { id: 'G3', type: 'pattern', pattern: 'rm\\s+-rf\\s+' },
+        {
+          id: 'G4',
+          type: 'pattern',
+          pattern: 'DELETE\\s+FROM\\b(?!.*\\bWHERE\\b)',
+        },
+      ]
+      const out = M.normalizePatterns(rules, 'blockRule')
+      expect(out[0].pattern).toBe('regex:rm\\s+-rf\\s+')
+      expect(out[1].pattern).toBe('regex:DELETE\\s+FROM\\b(?!.*\\bWHERE\\b)')
     })
   })
 
@@ -458,6 +486,93 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const res = await M.classifyCommand('patch-apply --force', 's1')
       expect(res.decision).toBe('allow')
       expect(res.reason).toContain('Allowed by exception')
+    })
+
+    it('does not exempt a compound command via a segment-only allow exception', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        blockRules: [
+          {
+            id: 'BR-038',
+            type: 'pattern',
+            pattern: 'regex:git\\s+push\\s+--force',
+            severity: 'high',
+            description: 'git force push',
+            enabled: true,
+          },
+        ],
+        allowExceptions: [
+          {
+            id: 'AE-006',
+            type: 'pattern',
+            pattern: 'regex:git\\s+push\\s+--force-with-lease',
+            enabled: true,
+            description: 'allow force push with lease',
+          },
+        ],
+      })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand(
+        'git push --force-with-lease && git push --force origin main',
+        's1'
+      )
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('BR-038')
+    })
+
+    it('still allows a single command via its allow exception', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        blockRules: [
+          {
+            id: 'BR-038',
+            type: 'pattern',
+            pattern: 'regex:git\\s+push\\s+--force',
+            severity: 'high',
+            description: 'git force push',
+            enabled: true,
+          },
+        ],
+        allowExceptions: [
+          {
+            id: 'AE-006',
+            type: 'pattern',
+            pattern: 'regex:git\\s+push\\s+--force-with-lease',
+            enabled: true,
+            description: 'allow force push with lease',
+          },
+        ],
+      })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand(
+        'git push --force-with-lease origin main',
+        's1'
+      )
+      expect(res.decision).toBe('allow')
+      expect(res.reason).toContain('Allowed by exception')
+    })
+
+    it('blocks commands matched by a glob-style block rule', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        blockRules: [
+          {
+            id: 'BR-GLOB',
+            type: 'pattern',
+            pattern: '*sh*',
+            severity: 'critical',
+            description: 'shell script execution',
+            enabled: true,
+          },
+        ],
+      })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('bash evil.sh', 's1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toContain('BR-GLOB')
     })
 
     it('asks when LLM model is not configured', async () => {
@@ -692,9 +807,9 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       fs.utimesSync(cfgPath, fixed, fixed)
       const M = await loadPlugin()
       await M.opencodeAutoMode({})
-      expect(
-        (await M.classifyCommand('purge-data --all', 's1')).decision
-      ).toBe('deny')
+      expect((await M.classifyCommand('purge-data --all', 's1')).decision).toBe(
+        'deny'
+      )
 
       writeConfig({
         ...BASE_CONFIG,
@@ -790,9 +905,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
 
   describe('trust boundary is enforced for file reads', () => {
     it('does not feed file content to the LLM when the file is outside the trust boundary', async () => {
-      const protectedDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'am-prot-')
-      )
+      const protectedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-prot-'))
       try {
         const secretDir = path.join(protectedDir, 'secrets')
         fs.mkdirSync(secretDir, { recursive: true })
@@ -811,7 +924,9 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
           statusText: 'OK',
           json: () =>
             Promise.resolve({
-              choices: [{ message: { content: '{"allow":true,"reason":"ok"}' } }],
+              choices: [
+                { message: { content: '{"allow":true,"reason":"ok"}' } },
+              ],
             }),
         } as any)
         writeConfig({
@@ -823,12 +938,11 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         })
         const M = await loadPlugin()
         await M.opencodeAutoMode({})
-        const res = await M.classifyCommand(
-          `node ${junctionScript}`,
-          's1'
-        )
+        const res = await M.classifyCommand(`node ${junctionScript}`, 's1')
         expect(res.decision).toBe('allow')
-        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+        const body = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        )
         expect(body.messages[0].content).not.toContain('topsecret-leak')
         expect(body.messages[0].content).not.toContain('FILE CONTEXT')
       } finally {
@@ -850,9 +964,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         statusText: 'OK',
         json: () =>
           Promise.resolve({
-            choices: [
-              { message: { content: 'not json API_KEY=abc123def' } },
-            ],
+            choices: [{ message: { content: 'not json API_KEY=abc123def' } }],
           }),
       } as any)
       const M = await loadPlugin()

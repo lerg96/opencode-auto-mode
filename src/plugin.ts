@@ -320,6 +320,20 @@ function isValidRegex(pattern: string): boolean {
   }
 }
 
+const REGEX_METACHAR_RE = /[\\()|+{}^$\[\]?]/
+
+function globToRegex(glob: string): string {
+  let out = ''
+  for (const ch of glob) {
+    if (ch === '*') {
+      out += '.*'
+    } else {
+      out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+  }
+  return out
+}
+
 function normalizePatterns(rules: any[], label: string): any[] {
   return (rules || []).map((r) => {
     if (r && r.type === 'pattern' && typeof r.pattern === 'string') {
@@ -333,7 +347,10 @@ function normalizePatterns(rules: any[], label: string): any[] {
         }
         return r
       }
-      if (/[\\()|+{}^$\[\]?]/.test(r.pattern)) {
+      if (r.pattern.includes('*') && !REGEX_METACHAR_RE.test(r.pattern)) {
+        return { ...r, pattern: `regex:${globToRegex(r.pattern)}` }
+      }
+      if (REGEX_METACHAR_RE.test(r.pattern)) {
         if (isValidRegex(r.pattern)) {
           return { ...r, pattern: `regex:${r.pattern}` }
         }

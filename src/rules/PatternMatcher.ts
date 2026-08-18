@@ -11,6 +11,7 @@ const MAX_PATTERN_LENGTH = 200
 const SUSPICIOUS_LENGTH_THRESHOLD = 100
 
 const QUANTIFIER_RE = /[+*()]/g
+const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
 
 function isSuspiciousPattern(pattern: string): boolean {
   if (pattern.length <= SUSPICIOUS_LENGTH_THRESHOLD) {
@@ -57,15 +58,34 @@ export class PatternMatcher {
     const cmd = extractCommand(toolCall)
     const filePath = extractFilePath(toolCall)
 
-    if (exception.pattern.startsWith('regex:')) {
-      const pattern = exception.pattern.slice(6)
-      if (this.regexMatches(cmd, filePath, pattern)) {
+    if (cmd) {
+      // An allow exception only exempts a compound command when it covers
+      // every segment. Otherwise a pattern like `git push --force-with-lease`
+      // would exempt `git push --force-with-lease && git push --force origin main`.
+      const segments = cmd.split(SHELL_SEPARATOR_RE)
+      let coveredSegment = false
+      for (const segment of segments) {
+        if (!segment.trim()) {
+          continue
+        }
+        coveredSegment = true
+        const matched = exception.pattern.startsWith('regex:')
+          ? this.regexMatches(segment, null, exception.pattern.slice(6))
+          : this.substringMatches(segment, null, exception.pattern)
+        if (!matched) {
+          return false
+        }
+      }
+      if (coveredSegment) {
         return true
       }
-    } else {
-      if (this.substringMatches(cmd, filePath, exception.pattern)) {
-        return true
+    }
+
+    if (filePath) {
+      if (exception.pattern.startsWith('regex:')) {
+        return this.regexMatches(null, filePath, exception.pattern.slice(6))
       }
+      return this.substringMatches(null, filePath, exception.pattern)
     }
 
     return false
