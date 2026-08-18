@@ -1,8 +1,15 @@
 import * as path from 'node:path'
 import * as os from 'node:os'
 import * as fs from 'node:fs'
+
+jest.mock('node:fs', () => {
+  const actual = jest.requireActual('node:fs')
+  return { ...actual, openSync: jest.fn(actual.openSync) }
+})
+
 import {
   extractFileFromCommand,
+  isInlineCommand,
   isSafeFile,
   readSafely,
   isSuspiciousFileContent,
@@ -115,6 +122,57 @@ describe('extractFileFromCommand', () => {
 
   it('should handle hyphenated filenames', () => {
     expect(extractFileFromCommand('node my-file.js')).toBe('my-file.js')
+  })
+
+  it('should return null for pwsh -Command inline scripts', () => {
+    expect(extractFileFromCommand('pwsh -Command "node script.js"')).toBeNull()
+    expect(
+      extractFileFromCommand("powershell -Command 'node script.js'")
+    ).toBeNull()
+  })
+
+  it('should return null for bash -lc / bash -c inline scripts', () => {
+    expect(extractFileFromCommand('bash -lc "node script.js"')).toBeNull()
+    expect(extractFileFromCommand('bash -c "node script.js"')).toBeNull()
+    expect(extractFileFromCommand('sh -lc "echo hi"')).toBeNull()
+  })
+
+  it('should return null for cmd /c inline scripts', () => {
+    expect(extractFileFromCommand('cmd /c "node script.js"')).toBeNull()
+  })
+
+  it('should still extract real files for pwsh -File', () => {
+    expect(extractFileFromCommand('pwsh -File script.ps1')).toBe('script.ps1')
+  })
+})
+
+describe('isInlineCommand', () => {
+  it('detects bash -c inline scripts', () => {
+    expect(isInlineCommand('bash -c "echo hi"')).toBe(true)
+    expect(isInlineCommand("bash -c 'echo hi'")).toBe(true)
+  })
+
+  it('detects bash -lc inline scripts', () => {
+    expect(isInlineCommand('bash -lc "node script.js"')).toBe(true)
+    expect(isInlineCommand("sh -lc 'echo hi'")).toBe(true)
+  })
+
+  it('detects pwsh/powershell -Command inline scripts', () => {
+    expect(isInlineCommand('pwsh -Command "node script.js"')).toBe(true)
+    expect(isInlineCommand("powershell -Command 'Get-Content file.txt'")).toBe(
+      true
+    )
+  })
+
+  it('detects cmd /c inline scripts', () => {
+    expect(isInlineCommand('cmd /c "node script.js"')).toBe(true)
+    expect(isInlineCommand("cmd.exe /c 'echo hi'")).toBe(true)
+  })
+
+  it('does not flag -File or plain script execution', () => {
+    expect(isInlineCommand('pwsh -File script.ps1')).toBe(false)
+    expect(isInlineCommand('node script.js')).toBe(false)
+    expect(isInlineCommand('git commit -m "add file.ts"')).toBe(false)
   })
 })
 
@@ -285,6 +343,54 @@ describe('readSafely', () => {
       // chmod may not work on all platforms (e.g., Windows, CI as root)
       // In that case, skip this assertion
     }
+  })
+
+  it('opens the resolved real path (not the link) to reduce TOCTOU swap window', () => {
+    const realDir = path.join(tmpDir, 'real-dir')
+    fs.mkdirSync(realDir)
+    const target = path.join(realDir, 'real.js')
+    fs.writeFileSync(target, "console.log('real')")
+    const link = path.join(tmpDir, 'linked-dir')
+    try {
+      fs.symlinkSync(realDir, link, 'junction')
+    } catch {
+      return // symlinks unavailable on this platform
+    }
+    const throughLink = path.join(link, 'real.js')
+    ;(fs.openSync as unknown as jest.Mock).mockClear()
+    try {
+      const content = readSafely(throughLink)
+      expect(content).toBe("console.log('real')")
+      const opened = (fs.openSync as unknown as jest.Mock).mock.calls.map(
+        (c: any[]) => String(c[0])
+      )
+      expect(
+        opened.some(
+          (p) => p.toLowerCase() === path.resolve(throughLink).toLowerCase()
+        )
+      ).toBe(false)
+      expect(
+        opened.some(
+          (p) => p.toLowerCase() === path.resolve(target).toLowerCase()
+        )
+      ).toBe(true)
+    } finally {
+      ;(fs.openSync as unknown as jest.Mock).mockClear()
+    }
+  })
+
+  it('returns null when a link resolves outside the trust boundary', () => {
+    const unsafeDir = path.join(tmpDir, '.ssh')
+    fs.mkdirSync(unsafeDir, { recursive: true })
+    const secret = path.join(unsafeDir, 'id_rsa.js')
+    fs.writeFileSync(secret, 'keys')
+    const link = path.join(tmpDir, 'looks-safe-dir')
+    try {
+      fs.symlinkSync(unsafeDir, link, 'junction')
+    } catch {
+      return // symlinks unavailable on this platform
+    }
+    expect(readSafely(path.join(link, 'id_rsa.js'))).toBeNull()
   })
 })
 

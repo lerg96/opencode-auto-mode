@@ -6,6 +6,12 @@ import type { TrustBoundaryConfig } from '../types/PluginConfig'
 const INLINE_CODE_PATTERNS = [
   '-c "',
   "-c '",
+  '-lc "',
+  "-lc '",
+  '-Command "',
+  "-Command '",
+  '/c "',
+  "/c '",
   '-e "',
   "-e '",
   '--eval "',
@@ -291,11 +297,12 @@ export function readSafely(
   if (!filepath) return null
   let fd: number | null = null
   try {
-    if (!isSafeFile(filepath, trustBoundary)) return null
-    fd = fs.openSync(filepath, 'r')
+    const resolved = fs.realpathSync(filepath)
+    fd = fs.openSync(resolved, 'r')
     const stat = fs.fstatSync(fd)
     if (!stat.isFile()) return null
     if (stat.size === 0) return null
+    if (!isSafeFile(resolved, trustBoundary)) return null
     const readLength = Math.min(stat.size, SAFE_FILE_SIZE_BYTES)
     const buffer = Buffer.alloc(readLength)
     fs.readSync(fd, buffer, 0, readLength, 0)

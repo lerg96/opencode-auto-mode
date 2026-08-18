@@ -6,10 +6,7 @@ type PluginModule = typeof import('../../src/plugin')
 
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'auto-mode-test-'))
 
-function writeConfig(
-  config: Record<string, unknown>,
-  dir = TMP_DIR
-): void {
+function writeConfig(config: Record<string, unknown>, dir = TMP_DIR): void {
   fs.writeFileSync(path.join(dir, 'auto-mode.jsonc'), JSON.stringify(config))
 }
 
@@ -222,7 +219,12 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const M = await loadPlugin()
       const rules = [
         { id: 'R2', type: 'pattern', pattern: 'git checkout [' },
-        { id: 'R3', type: 'pattern', pattern: 'git checkout [', severity: 'high' },
+        {
+          id: 'R3',
+          type: 'pattern',
+          pattern: 'git checkout [',
+          severity: 'high',
+        },
       ]
       const out = M.normalizePatterns(rules, 'blockRule')
       expect(out[0].pattern).toBe('git checkout [')
@@ -692,9 +694,9 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       fs.utimesSync(cfgPath, fixed, fixed)
       const M = await loadPlugin()
       await M.opencodeAutoMode({})
-      expect(
-        (await M.classifyCommand('purge-data --all', 's1')).decision
-      ).toBe('deny')
+      expect((await M.classifyCommand('purge-data --all', 's1')).decision).toBe(
+        'deny'
+      )
 
       writeConfig({
         ...BASE_CONFIG,
@@ -724,6 +726,63 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       const res = await M.classifyCommand('purge-data --all', 's1')
       expect(res.decision).toBe('deny')
       expect(res.reason).toContain('BR-CRITICAL')
+    })
+  })
+
+  describe('softRules auto-reload', () => {
+    function mockLLMResponse(text: string): void {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({ choices: [{ message: { content: text } }] }),
+      } as any)
+    }
+
+    const SOFT_CONFIG = {
+      ...BASE_CONFIG,
+      blockRules: [
+        {
+          id: 'BR-SOFT',
+          type: 'pattern',
+          pattern: 'regex:soft-cmd',
+          severity: 'high',
+          description: 'test',
+          enabled: true,
+        },
+      ],
+      softRules: ['BR-SOFT'],
+    }
+
+    it('detects a softRules rewrite even when the file mtime is unchanged', async () => {
+      writeConfig(SOFT_CONFIG)
+      const cfgPath = path.join(TMP_DIR, 'auto-mode.jsonc')
+      const fixed = new Date(1577836800000)
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      const soft = await M.classifyCommand('soft-cmd', 's1')
+      expect(soft.decision).toBe('allow')
+
+      writeConfig({ ...SOFT_CONFIG, softRules: [] })
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const res = await M.classifyCommand('soft-cmd', 's1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('BR-SOFT')
+    })
+
+    it('defers softRules reload when the config is mid-write (unparseable)', async () => {
+      writeConfig(SOFT_CONFIG)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      expect((await M.classifyCommand('soft-cmd', 's1')).decision).toBe('allow')
+      fs.writeFileSync(path.join(TMP_DIR, 'auto-mode.jsonc'), '{ "broken": ')
+      mockLLMResponse('{"allow":false,"reason":"x"}')
+      const res = await M.classifyCommand('soft-cmd', 's1')
+      expect(res.decision).toBe('deny')
     })
   })
 
@@ -786,13 +845,40 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(res.reason).toBe('x')
       expect(res.reason).not.toContain('allow-list')
     })
+
+    it('detects an allow-list rewrite even when the file mtime is unchanged', async () => {
+      writeConfig(BASE_CONFIG)
+      writeOpenCodeConfig({ Bash: { 'ls *': 'allow' } })
+      const ocPath = path.join(TMP_DIR, 'opencode.jsonc')
+      const fixed = new Date(1577836800000)
+      fs.utimesSync(ocPath, fixed, fixed)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      expect((await M.classifyCommand('ls -la /tmp', 's1')).decision).toBe(
+        'allow'
+      )
+
+      writeOpenCodeConfigRaw({ permission: { Bash: { 'npm *': 'allow' } } })
+      fs.utimesSync(ocPath, fixed, fixed)
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: '{"allow":false,"reason":"x"}' } }],
+          }),
+      } as any)
+      const res = await M.classifyCommand('ls -la /tmp', 's1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toBe('x')
+      expect(res.reason).not.toContain('allow-list')
+    })
   })
 
   describe('trust boundary is enforced for file reads', () => {
     it('does not feed file content to the LLM when the file is outside the trust boundary', async () => {
-      const protectedDir = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'am-prot-')
-      )
+      const protectedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-prot-'))
       try {
         const secretDir = path.join(protectedDir, 'secrets')
         fs.mkdirSync(secretDir, { recursive: true })
@@ -811,7 +897,9 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
           statusText: 'OK',
           json: () =>
             Promise.resolve({
-              choices: [{ message: { content: '{"allow":true,"reason":"ok"}' } }],
+              choices: [
+                { message: { content: '{"allow":true,"reason":"ok"}' } },
+              ],
             }),
         } as any)
         writeConfig({
@@ -823,12 +911,11 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         })
         const M = await loadPlugin()
         await M.opencodeAutoMode({})
-        const res = await M.classifyCommand(
-          `node ${junctionScript}`,
-          's1'
-        )
+        const res = await M.classifyCommand(`node ${junctionScript}`, 's1')
         expect(res.decision).toBe('allow')
-        const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body)
+        const body = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        )
         expect(body.messages[0].content).not.toContain('topsecret-leak')
         expect(body.messages[0].content).not.toContain('FILE CONTEXT')
       } finally {
@@ -850,9 +937,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         statusText: 'OK',
         json: () =>
           Promise.resolve({
-            choices: [
-              { message: { content: 'not json API_KEY=abc123def' } },
-            ],
+            choices: [{ message: { content: 'not json API_KEY=abc123def' } }],
           }),
       } as any)
       const M = await loadPlugin()
