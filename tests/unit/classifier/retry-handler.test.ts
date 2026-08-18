@@ -106,7 +106,7 @@ describe('RetryHandler', () => {
         )
       ).rejects.toThrow('Custom error')
 
-      expect(attempts).toBe(3)
+      expect(attempts).toBe(2)
     })
   })
 

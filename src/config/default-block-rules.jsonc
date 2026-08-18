@@ -139,8 +139,83 @@
     "severity": "critical",
     "enabled": true,
   },
+  // Inline Code Execution — softRules: ["BR-016".."BR-023"]
   {
     "id": "BR-016",
+    "type": "pattern",
+    "pattern": "python.*-c.*import\\s+os",
+    "category": "execution",
+    "description": "Python OS module import via inline execution",
+    "severity": "medium",
+    "enabled": true,
+  },
+  {
+    "id": "BR-017",
+    "type": "pattern",
+    "pattern": "subprocess\\s*\\(",
+    "category": "execution",
+    "description": "Subprocess execution via inline code",
+    "severity": "medium",
+    "enabled": true,
+  },
+  {
+    "id": "BR-018",
+    "type": "pattern",
+    "pattern": "\\.system\\s*\\(",
+    "category": "execution",
+    "description": "System call execution via inline code",
+    "severity": "medium",
+    "enabled": true,
+  },
+  {
+    "id": "BR-019",
+    "type": "pattern",
+    "pattern": "\\.exec\\s*\\(",
+    "category": "execution",
+    "description": "Exec call via inline code",
+    "severity": "medium",
+    "enabled": true,
+  },
+  {
+    "id": "BR-020",
+    "type": "pattern",
+    "pattern": "\\.spawn\\s*\\(",
+    "category": "execution",
+    "description": "Spawn process call via inline code",
+    "severity": "medium",
+    "enabled": true,
+  },
+  {
+    "id": "BR-021",
+    "type": "pattern",
+    "pattern": "\\.fork\\s*\\(",
+    "category": "execution",
+    "description": "Fork process call via inline code",
+    "severity": "low",
+    "enabled": true,
+  },
+  {
+    "id": "BR-022",
+    "type": "pattern",
+    "pattern": "\\.child_process",
+    "category": "execution",
+    "description": "Child process creation via inline code",
+    "severity": "low",
+    "enabled": true,
+  },
+  {
+    "id": "BR-023",
+    "type": "pattern",
+    "pattern": "\\.Popen\\s*\\(",
+    "category": "execution",
+    "description": "Python Popen process via inline code",
+    "severity": "medium",
+    "enabled": true,
+  },
+
+  // SSL, Network & Firewall, Database, Version Control (moved from old BR-016..BR-023)
+  {
+    "id": "BR-031",
     "type": "pattern",
     "pattern": "openssl\\s+",
     "category": "security",
@@ -148,10 +223,8 @@
     "severity": "medium",
     "enabled": true,
   },
-
-  // Network & Firewall
   {
-    "id": "BR-017",
+    "id": "BR-032",
     "type": "pattern",
     "pattern": "iptables",
     "category": "network",
@@ -160,7 +233,7 @@
     "enabled": true,
   },
   {
-    "id": "BR-018",
+    "id": "BR-033",
     "type": "pattern",
     "pattern": "ufw",
     "category": "network",
@@ -169,7 +242,7 @@
     "enabled": true,
   },
   {
-    "id": "BR-019",
+    "id": "BR-034",
     "type": "pattern",
     "pattern": "nmap",
     "category": "network",
@@ -177,10 +250,8 @@
     "severity": "medium",
     "enabled": true,
   },
-
-  // Database
   {
-    "id": "BR-020",
+    "id": "BR-035",
     "type": "pattern",
     "pattern": "DROP\\s+TABLE",
     "category": "database",
@@ -189,16 +260,16 @@
     "enabled": true,
   },
   {
-    "id": "BR-021",
+    "id": "BR-036",
     "type": "pattern",
-    "pattern": "DELETE\\s+FROM\\s+.*WHERE\\s+.*=.*\\s*.*\\s*$",
+    "pattern": "DELETE\\s+FROM\\b(?!.*\\bWHERE\\b)",
     "category": "database",
-    "description": "DELETE without WHERE clause",
+    "description": "DELETE without WHERE clause (dangerous)",
     "severity": "critical",
     "enabled": true,
   },
   {
-    "id": "BR-022",
+    "id": "BR-037",
     "type": "pattern",
     "pattern": "TRUNCATE\\s+",
     "category": "database",
@@ -206,10 +277,8 @@
     "severity": "high",
     "enabled": true,
   },
-
-  // Version Control
   {
-    "id": "BR-023",
+    "id": "BR-038",
     "type": "pattern",
     "pattern": "git\\s+push\\s+--force",
     "category": "version-control",

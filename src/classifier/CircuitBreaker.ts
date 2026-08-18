@@ -88,5 +88,6 @@ export class CircuitBreaker {
     this.failureCount = 0
     this.state = CircuitState.CLOSED
     this.lastFailureTime = null
+    this.halfOpenInProgress = false
   }
 }

@@ -26,6 +26,7 @@ export class FallbackExecutor {
       case 'allow':
         return createAllowResult(
           `${message} - action allowed per fallback config`,
+          undefined,
           1
         )
       case 'deny':
@@ -50,6 +51,7 @@ export class FallbackExecutor {
       case 'allow':
         return createAllowResult(
           `${message} - action allowed per fallback config`,
+          undefined,
           1
         )
       case 'deny':

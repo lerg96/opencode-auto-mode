@@ -14,6 +14,7 @@ export class LLMProviderAbstraction {
   private readonly retryHandler: RetryHandler
   private readonly fallbackExecutor: FallbackExecutor
   private readonly apiKey: string
+  private startTimeMs?: number
 
   constructor(config: PluginConfig, apiKey: string) {
     this.config = config
@@ -26,6 +27,7 @@ export class LLMProviderAbstraction {
 
   async classifyStage1(prompt: string): Promise<Stage1Result> {
     const startTime = Date.now()
+    this.startTimeMs = startTime
 
     try {
       return await this.circuitBreaker.withCircuitBreaker(async () => {
@@ -38,6 +40,7 @@ export class LLMProviderAbstraction {
                 'stage1',
                 controller.signal
               )
+              this.applyLatency(result)
               return result as Stage1Result
             } catch (error) {
               if (this.timeoutManager.isTimeoutError(error)) {
@@ -58,6 +61,7 @@ export class LLMProviderAbstraction {
 
   async classifyStage2(prompt: string): Promise<Stage2Result> {
     const startTime = Date.now()
+    this.startTimeMs = startTime
 
     try {
       return await this.circuitBreaker.withCircuitBreaker(async () => {
@@ -70,6 +74,7 @@ export class LLMProviderAbstraction {
                 'stage2',
                 controller.signal
               )
+              this.applyLatency(result)
               return result as Stage2Result
             } catch (error) {
               if (this.timeoutManager.isTimeoutError(error)) {
@@ -150,7 +155,7 @@ export class LLMProviderAbstraction {
     }
   }
 
-  private callOpenAI(
+  private async callOpenAI(
     prompt: string,
     stage: 'stage1' | 'stage2',
     signal?: AbortSignal
@@ -164,38 +169,38 @@ export class LLMProviderAbstraction {
       }, timeout)
     }
 
-    const promise = fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: this.config.llm.model,
-        max_tokens: stage === 'stage1' ? 1 : 1024,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        clearTimeout(timeoutId)
-        if (!response.ok) {
-          throw new Error(
-            `OpenAI API error: ${response.status} ${response.statusText}`
-          )
-        }
-        const data = await response.json()
-        return this.parseOpenAIResponse(data, stage)
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId)
-        throw error
+    try {
+      const baseUrl = this.config.llm.baseUrl || 'https://api.openai.com'
+      const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.config.llm.model,
+          max_tokens: stage === 'stage1' ? 1 : 1024,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        signal: controller.signal,
       })
 
-    return promise
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(
+          `OpenAI API error: ${response.status} ${response.statusText}`
+        )
+      }
+      const data = await response.json()
+      return this.parseOpenAIResponse(data, stage)
+    } catch (error) {
+      clearTimeout(timeoutId)
+      throw error
+    }
   }
 
-  private callLocal(
+  private async callLocal(
     prompt: string,
     stage: 'stage1' | 'stage2',
     signal?: AbortSignal
@@ -209,32 +214,61 @@ export class LLMProviderAbstraction {
       }, timeout)
     }
 
-    const promise = fetch('http://localhost:11434/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.config.llm.model,
-        prompt: prompt,
-        stream: false,
-        max_tokens: stage === 'stage1' ? 1 : 1024,
-      }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        clearTimeout(timeoutId)
-        if (!response.ok) {
-          throw new Error(
-            `Local model API error: ${response.status} ${response.statusText}`
-          )
-        }
-        return response.json()
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId)
-        throw error
+    try {
+      const baseUrl = this.config.llm.baseUrl || 'http://localhost:18780/v1'
+      let endpoint: string
+      if (baseUrl.endsWith('/v1')) {
+        endpoint = `${baseUrl}/chat/completions`
+      } else if (baseUrl.endsWith('/v1/')) {
+        endpoint = `${baseUrl}chat/completions`
+      } else {
+        endpoint = `${baseUrl}/chat/completions`
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.config.llm.model,
+          max_tokens: stage === 'stage1' ? 1 : 1024,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        signal: controller.signal,
       })
 
-    return promise
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        throw new Error(
+          `Local model API error: ${response.status} ${response.statusText}`
+        )
+      }
+      const data = await response.json()
+      const result = this.parseOpenAIResponse(data, stage)
+      this.applyLatency(result)
+      return result
+    } catch (error) {
+      clearTimeout(timeoutId)
+      throw error
+    }
+  }
+
+ private applyLatency(result: unknown): void {
+    if (
+      result &&
+      typeof result === 'object' &&
+      'latency' in result &&
+      this.startTimeMs !== undefined
+    ) {
+      const parsed = result as Record<string, unknown>
+      if (typeof parsed.latency === 'number') {
+        const duration = Date.now() - this.startTimeMs
+        parsed.latency = duration
+      }
+    }
   }
 
   private parseAnthropicResponse(

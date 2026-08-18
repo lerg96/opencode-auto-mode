@@ -15,7 +15,7 @@ export class RetryHandler {
   ): Promise<T> {
     let lastError: unknown = null
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         return await operation()
       } catch (error) {
@@ -25,7 +25,7 @@ export class RetryHandler {
           throw error
         }
 
-        if (attempt < this.maxRetries) {
+        if (attempt + 1 < this.maxRetries) {
           const delay = this.calculateBackoffDelay(attempt)
           await this.sleep(delay)
         }

@@ -84,7 +84,7 @@ export class PatternMatcher {
     }
     if (isSuspiciousPattern(pattern)) {
       console.warn(
-        `[auto-mode] Pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers) — matching with reduced confidence`
+        `[auto-mode] Pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers)`
       )
     }
     try {

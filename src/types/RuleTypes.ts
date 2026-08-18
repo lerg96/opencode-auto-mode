@@ -1,6 +1,6 @@
 export type RuleType = 'pattern' | 'semantic'
 export type MatchConfidence = 'high' | 'medium' | 'low'
-export type RuleSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type RuleSeverity = 'low' | 'medium' | 'high' | 'critical' | 'soft'
 export type RuleEvaluationResultType = 'blocked' | 'allowed' | 'uncertain'
 
 export interface BlockRule {

@@ -132,11 +132,12 @@ describe('ConfigManager', () => {
   })
 
   describe('getDefaultConfigPath', () => {
-    it('should return default path in HOME/.opencode/', () => {
+    it('should return default path in HOME/.config/opencode/', () => {
       const manager = new ConfigManager()
       const defaultPath = manager.getDefaultConfigPath()
 
-      expect(defaultPath).toContain('.opencode')
+      expect(defaultPath).toContain('.config')
+      expect(defaultPath).toContain('opencode')
       expect(defaultPath).toContain('auto-mode.jsonc')
     })
   })
