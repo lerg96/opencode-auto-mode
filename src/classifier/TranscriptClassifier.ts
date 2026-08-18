@@ -66,7 +66,11 @@ export class TranscriptClassifier {
           `Stage 1 fast filter: allowed`,
           1
         )
-        return createAllowResult(`Stage 1 fast filter: action allowed`, 1)
+        return createAllowResult(
+      `Stage 1 fast filter: action allowed`,
+      undefined,
+      1
+    )
       }
 
       // Stage 1 predicted block — proceed to Stage 2
@@ -119,6 +123,7 @@ export class TranscriptClassifier {
       )
       return createAllowResult(
         `Stage 2 chain-of-thought: action allowed — ${stage2Result.reasoning}`,
+        undefined,
         2
       )
     } catch (error) {
@@ -233,7 +238,7 @@ export class TranscriptClassifier {
     return prompt
   }
 
-  private handleStage1Error(error: unknown): ClassificationResult {
+  private handleError(error: unknown): ClassificationResult {
     if (this.fallbackExecutor.isTimeoutError(error)) {
       return this.fallbackExecutor.executeOnTimeout(
         error instanceof Error ? error : new Error(String(error))
@@ -244,15 +249,12 @@ export class TranscriptClassifier {
     )
   }
 
+  private handleStage1Error(error: unknown): ClassificationResult {
+    return this.handleError(error)
+  }
+
   private handleStage2Error(error: unknown): ClassificationResult {
-    if (this.fallbackExecutor.isTimeoutError(error)) {
-      return this.fallbackExecutor.executeOnTimeout(
-        error instanceof Error ? error : new Error(String(error))
-      )
-    }
-    return this.fallbackExecutor.executeOnError(
-      error instanceof Error ? error : new Error(String(error))
-    )
+    return this.handleError(error)
   }
 
   getLLMProvider(): LLMProviderAbstraction {

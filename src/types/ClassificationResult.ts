@@ -12,8 +12,8 @@ export interface ClassificationResult {
 
 export function createAllowResult(
   reasoning: string,
-  stage: 1 | 2 | 'rule-eval' = 1,
-  blockRule?: string
+  blockRule?: string,
+  stage: 1 | 2 | 'rule-eval' = 1
 ): ClassificationResult {
   return {
     decision: 'allow',

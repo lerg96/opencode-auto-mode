@@ -120,10 +120,10 @@ export class InjectionProtectionService {
     return { injectionDetected: false }
   }
 
-  handleToolResult(context: {
+  async handleToolResult(context: {
     sessionId?: string
     toolResult?: string
-  }): InjectionProtectionHookResult {
+  }): Promise<InjectionProtectionHookResult> {
     if (!this.config.enabled || !this.config.scanToolResults) {
       return { injectionDetected: false }
     }
@@ -132,7 +132,7 @@ export class InjectionProtectionService {
       return { injectionDetected: false }
     }
 
-    return { injectionDetected: false }
+    return await this.scanToolResult(context.toolResult, context.sessionId)
   }
 
   getScanCount(sessionId: string): number {
@@ -148,6 +148,29 @@ export class InjectionProtectionService {
   }
 
   updateConfig(config: Partial<InjectionProtectionConfig>): void {
+    const oldPatterns = this.config.customPatterns
     this.config = { ...this.config, ...config }
+
+    if (config.customPatterns !== oldPatterns) {
+      if (
+        this.config.customPatterns &&
+        this.config.customPatterns.length > 0
+      ) {
+        const validPatterns = this.config.customPatterns
+          .filter((p) => isValidInjectionPattern(p.pattern))
+          .map((p) => ({
+            type: 'custom' as const,
+            pattern: new RegExp(p.pattern, 'i'),
+            description: p.description || 'Custom injection pattern',
+          }))
+        if (validPatterns.length > 0) {
+          this.probe = new InjectionProbe(validPatterns)
+        } else {
+          this.probe = new InjectionProbe()
+        }
+      } else {
+        this.probe = new InjectionProbe()
+      }
+    }
   }
 }

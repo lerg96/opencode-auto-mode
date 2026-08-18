@@ -145,54 +145,55 @@ function loadDefaultBlockRules(): BlockRule[] {
     {
       id: 'BR-011',
       type: 'pattern',
-      pattern: 'git push --force',
-      category: 'collaboration',
-      description: 'Forced git push',
-      severity: 'medium',
+      pattern: 'git\\s+push\\s+--force',
+      category: 'version-control',
+      description: 'Git force push (history rewrite)',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-012',
       type: 'pattern',
-      pattern: '\\.sudo',
+      pattern: 'sudo\\s+',
       category: 'privilege',
       description: 'Sudo escalation',
-      severity: 'medium',
+      severity: 'critical',
       enabled: true,
     },
     {
       id: 'BR-013',
       type: 'pattern',
-      pattern: 'dd\\s+if=',
-      category: 'destruction',
-      description: 'Disk image write (dd)',
-      severity: 'critical',
+      pattern: '|\\s*chmod\\s+777',
+      category: 'permissions',
+      description: 'World-writable permissions',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-014',
       type: 'pattern',
-      pattern: 'mkfs',
+      pattern: 'docker\\s+(system\\s+prune|rm\\s+-f|rmi\\s+-f)',
       category: 'destruction',
-      description: 'Filesystem creation (format disk)',
-      severity: 'critical',
+      description: 'Docker force removal',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-015',
       type: 'pattern',
-      pattern: '\\.nc\\s+.*-e\\s',
-      category: 'execution',
-      description: 'Netcat reverse shell',
-      severity: 'critical',
+      pattern: 'git\\s+reset\\s+(--hard|--soft)',
+      category: 'version-control',
+      description: 'Git reset (potential history loss)',
+      severity: 'medium',
       enabled: true,
     },
+    // Inline Code Execution — matches JSONC BR-016..BR-023
     {
       id: 'BR-016',
       type: 'pattern',
       pattern: 'python.*-c.*import\\s+os',
       category: 'execution',
-      description: 'Python OS module import',
+      description: 'Python OS module import via inline execution',
       severity: 'medium',
       enabled: true,
     },
@@ -201,7 +202,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: 'subprocess\\s*\\(',
       category: 'execution',
-      description: 'Subprocess execution',
+      description: 'Subprocess execution via inline code',
       severity: 'medium',
       enabled: true,
     },
@@ -210,7 +211,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.system\\s*\\(',
       category: 'execution',
-      description: 'System call execution',
+      description: 'System call execution via inline code',
       severity: 'medium',
       enabled: true,
     },
@@ -219,7 +220,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.exec\\s*\\(',
       category: 'execution',
-      description: 'Exec call',
+      description: 'Exec call via inline code',
       severity: 'medium',
       enabled: true,
     },
@@ -228,7 +229,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.spawn\\s*\\(',
       category: 'execution',
-      description: 'Spawn process',
+      description: 'Spawn process call via inline code',
       severity: 'medium',
       enabled: true,
     },
@@ -237,7 +238,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.fork\\s*\\(',
       category: 'execution',
-      description: 'Fork process',
+      description: 'Fork process call via inline code',
       severity: 'low',
       enabled: true,
     },
@@ -246,7 +247,7 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.child_process',
       category: 'execution',
-      description: 'Child process creation',
+      description: 'Child process creation via inline code',
       severity: 'low',
       enabled: true,
     },
@@ -255,71 +256,72 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: '\\.Popen\\s*\\(',
       category: 'execution',
-      description: 'Python Popen process',
+      description: 'Python Popen process via inline code',
       severity: 'medium',
       enabled: true,
     },
+    // Security, network, and database rules re-sequenced for consistency
     {
       id: 'BR-024',
       type: 'pattern',
-      pattern: '\\.nohup\\s',
-      category: 'execution',
-      description: 'Nohangup execution',
-      severity: 'low',
+      pattern: '~/.ssh/',
+      category: 'security',
+      description: 'SSH key directory access',
+      severity: 'critical',
       enabled: true,
     },
     {
       id: 'BR-025',
       type: 'pattern',
-      pattern: '\\.screen\\s',
-      category: 'execution',
-      description: 'Screen session creation',
-      severity: 'low',
+      pattern: '~/.env',
+      category: 'security',
+      description: 'Environment file access',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-026',
       type: 'pattern',
-      pattern: '\\.tmux\\s',
-      category: 'execution',
-      description: 'Tmux session creation',
-      severity: 'low',
+      pattern: '/etc/',
+      category: 'configuration',
+      description: 'System configuration path access',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-027',
       type: 'pattern',
-      pattern: '\\.cron\\s+-e',
-      category: 'execution',
-      description: 'Cron job editing',
+      pattern: 'crontab\\s+-e',
+      category: 'system-admin',
+      description: 'Cron job modification',
       severity: 'medium',
       enabled: true,
     },
     {
       id: 'BR-028',
       type: 'pattern',
-      pattern: '\\.systemctl\\s+start',
-      category: 'execution',
-      description: 'System service start',
-      severity: 'medium',
+      pattern: 'insmod\\s+',
+      category: 'system-admin',
+      description: 'Kernel module loading',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-029',
       type: 'pattern',
-      pattern: '\\.systemctl\\s+enable',
-      category: 'execution',
-      description: 'System service enable',
-      severity: 'medium',
+      pattern: 'modprobe\\s+',
+      category: 'system-admin',
+      description: 'Kernel module loading',
+      severity: 'high',
       enabled: true,
     },
     {
       id: 'BR-030',
       type: 'pattern',
-      pattern: '\\.iptables\\s+-F',
-      category: 'security',
-      description: 'Flush iptables rules',
-      severity: 'critical',
+      pattern: 'systemctl\\s+(restart|stop|disable)',
+      category: 'configuration',
+      description: 'System service modification',
+      severity: 'medium',
       enabled: true,
     },
   ]
@@ -390,7 +392,7 @@ export class ConfigManager {
 
   getDefaultConfigPath(): string {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '.'
-    const opencodeDir = path.join(homeDir, '.opencode')
+    const opencodeDir = path.join(homeDir, '.config', 'opencode')
     return path.join(opencodeDir, 'auto-mode.jsonc')
   }
 
@@ -616,7 +618,7 @@ export class ConfigManager {
       config.allowExceptions.forEach((exc, index) => {
         if (typeof exc !== 'object' || exc === null) {
           errors.push(
-            `allowExceptions[${index}]: must be an object with id, agents, and tools`
+            `allowExceptions[${index}]: must be an object with id, pattern, and description`
           )
         } else {
           const e = exc as Record<string, unknown>
@@ -625,14 +627,14 @@ export class ConfigManager {
               `allowExceptions[${index}]: missing required field 'id'`
             )
           }
-          if (typeof e.agents === 'undefined' || e.agents === null) {
+          if (typeof e.pattern === 'undefined' || e.pattern === null) {
             errors.push(
-              `allowExceptions[${index}]: missing required field 'agents'`
+              `allowExceptions[${index}]: missing required field 'pattern'`
             )
           }
-          if (typeof e.tools === 'undefined' || e.tools === null) {
+          if (typeof e.description === 'undefined' || e.description === null) {
             errors.push(
-              `allowExceptions[${index}]: missing required field 'tools'`
+              `allowExceptions[${index}]: missing required field 'description'`
             )
           }
         }
