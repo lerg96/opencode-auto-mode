@@ -99,24 +99,32 @@ export class RuleEvaluator {
     }
 
     // Check protected commands
+    const segments = cmd.split(/[;&|`\n]|\$\s*\(/)
     for (const protectedCmd of trustBoundary.protectedCommands) {
-      const cmdParts = cmd.trim().split(/\s+/)
-      const cmdName = cmdParts[0]
+      const protectedName = protectedCmd.trim()
 
-      if (protectedCmd.trim().includes(' ')) {
-        if (cmd.startsWith(protectedCmd.trim())) {
-          return {
-            evaluation: 'blocked',
-            matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
-            reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
-          }
+      for (const segment of segments) {
+        const trimmedSegment = segment.trim()
+        if (!trimmedSegment) {
+          continue
         }
-      } else {
-        if (cmdName.toLowerCase() === protectedCmd.trim().toLowerCase()) {
-          return {
-            evaluation: 'blocked',
-            matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
-            reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
+
+        if (protectedName.includes(' ')) {
+          if (trimmedSegment.startsWith(protectedName)) {
+            return {
+              evaluation: 'blocked',
+              matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
+              reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
+            }
+          }
+        } else {
+          const firstToken = trimmedSegment.split(/\s+/)[0]
+          if (firstToken.toLowerCase() === protectedName.toLowerCase()) {
+            return {
+              evaluation: 'blocked',
+              matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
+              reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
+            }
           }
         }
       }

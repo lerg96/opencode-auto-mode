@@ -32,6 +32,7 @@ export class InjectionProbe {
     const allPatterns = [...this.builtInPatterns, ...this.customPatterns]
 
     for (const pattern of allPatterns) {
+      pattern.pattern.lastIndex = 0
       if (pattern.pattern.test(toolResult)) {
         return {
           injected: true,

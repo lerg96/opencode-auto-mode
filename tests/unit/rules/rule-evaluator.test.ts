@@ -271,6 +271,50 @@ describe('RuleEvaluator', () => {
       expect(result!.evaluation).toBe('blocked')
     })
 
+    it('should block protected command after a shell separator', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'echo test && sudo whoami' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-CMD')
+    })
+
+    it('should block protected command in a subshell', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'echo $(sudo whoami)' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-CMD')
+    })
+
+    it('should block protected command in a pipeline', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'ls -la | sudo whoami' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-CMD')
+    })
+
+    it('should block multi-word protected command after a shell separator', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'echo test && chmod 777 /tmp' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-CMD')
+    })
+
     it('should not flag normal commands that contain protected command names as substrings', () => {
       const toolCall = createToolCall({
         arguments: { command: 'make sudo-test' },
