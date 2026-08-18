@@ -49,6 +49,8 @@ export class LLMProviderAbstraction {
                 )
               }
               throw error
+            } finally {
+              this.timeoutManager.clearAbortController(controller)
             }
           },
           (err) => !this.fallbackExecutor.isTimeoutError(err)
@@ -83,6 +85,8 @@ export class LLMProviderAbstraction {
                 )
               }
               throw error
+            } finally {
+              this.timeoutManager.clearAbortController(controller)
             }
           },
           (err) => !this.fallbackExecutor.isTimeoutError(err)

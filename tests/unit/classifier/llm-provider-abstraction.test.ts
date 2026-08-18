@@ -158,8 +158,7 @@ describe('LLMProviderAbstraction', () => {
         ok: true,
         json: () =>
           Promise.resolve({
-            response: 'ALLOW\nThe command is safe.',
-            done: true,
+            choices: [{ message: { content: 'ALLOW\nThe command is safe.' } }],
           }),
       } as any)
 
@@ -168,14 +167,17 @@ describe('LLMProviderAbstraction', () => {
         const result = await provider.classifyStage2('classify this')
 
         expect(fetchSpy).toHaveBeenCalledWith(
-          'http://localhost:11434/api/generate',
+          'http://localhost:18780/v1/chat/completions',
           expect.objectContaining({
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: 'Bearer local-key',
+            },
             body: expect.stringContaining('qwen3.5-9b'),
           })
         )
-        expect((result as any).response).toBe('ALLOW\nThe command is safe.')
+        expect((result as any).decision).toBe('allow')
       } finally {
         fetchSpy.mockRestore()
       }

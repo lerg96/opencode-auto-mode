@@ -12,7 +12,8 @@ export class TimeoutManager {
   createStage1AbortController(): AbortController {
     const controller = new AbortController()
     if (this.stage1Timeout > 0) {
-      setTimeout(() => controller.abort(), this.stage1Timeout)
+      const timeoutId = setTimeout(() => controller.abort(), this.stage1Timeout)
+      attachTimeoutId(controller, timeoutId)
     }
     return controller
   }
@@ -20,9 +21,17 @@ export class TimeoutManager {
   createStage2AbortController(): AbortController {
     const controller = new AbortController()
     if (this.stage2Timeout > 0) {
-      setTimeout(() => controller.abort(), this.stage2Timeout)
+      const timeoutId = setTimeout(() => controller.abort(), this.stage2Timeout)
+      attachTimeoutId(controller, timeoutId)
     }
     return controller
+  }
+
+  clearAbortController(controller: AbortController): void {
+    const timeoutId = detachTimeoutId(controller)
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
   }
 
   isTimeoutError(error: unknown): boolean {
@@ -43,4 +52,18 @@ export class TimeoutManager {
   getStage2Timeout(): number {
     return this.stage2Timeout
   }
+}
+
+const TIMEOUT_ID_SYMBOL = Symbol('timeoutId')
+
+function attachTimeoutId(controller: AbortController, timeoutId: unknown): void {
+  ;(controller as unknown as Record<symbol, unknown>)[TIMEOUT_ID_SYMBOL] =
+    timeoutId
+}
+
+function detachTimeoutId(controller: AbortController): unknown {
+  const holder = controller as unknown as Record<symbol, unknown>
+  const timeoutId = holder[TIMEOUT_ID_SYMBOL]
+  delete holder[TIMEOUT_ID_SYMBOL]
+  return timeoutId
 }
