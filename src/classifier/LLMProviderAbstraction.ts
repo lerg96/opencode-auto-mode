@@ -363,9 +363,9 @@ export class LLMProviderAbstraction {
 
   private isNonRetryableError(error: unknown): boolean {
     if (this.fallbackExecutor.isTimeoutError(error)) return true
-    if (error instanceof Error && error.name === 'LlmParseError') return true
-    if (error instanceof Error && error.name === 'LlmHttpError') {
-      const status = (error as { status: number }).status
+    if (error instanceof LlmParseError) return true
+    if (error instanceof LlmHttpError) {
+      const status = error.status
       return status !== 429 && status !== 408 && status !== 500 && status !== 502 && status !== 503 && status !== 504
     }
     return false

@@ -1,5 +1,6 @@
 // @ts-ignore — dead code, will be removed in next major
 /* DEAD CODE — duplicate of plugin.ts flow. Use LlmClient.ts + callLLMWithModelFallback instead. */
+import { LlmHttpError, LlmParseError } from '../LlmClient'
 export class RetryHandler {
   private readonly maxRetries: number
   private readonly baseDelayMs: number
@@ -44,11 +45,11 @@ export class RetryHandler {
       if (message.includes('network') || message.includes('econnrefused')) {
         return true
       }
-      if (error.name === 'LlmParseError') {
+      if (error instanceof LlmParseError) {
         return false
       }
-      if (error.name === 'LlmHttpError' && (error as { status: number }).status) {
-        const status = (error as { status: number }).status
+      if (error instanceof LlmHttpError) {
+        const status = error.status
         if (status === 429 || status === 500 || status === 502 || status === 503 || status === 504 || status === 408) {
           return true
         }

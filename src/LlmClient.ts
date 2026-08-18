@@ -198,9 +198,10 @@ export async function callLlmWithFallback(
   }
 
   const parsed = data as Record<string, unknown>
-  const rawContent = (
-    parsed?.choices?.[0] as Record<string, unknown> | undefined
-  )?.message?.content
+  const choices = parsed?.choices as
+    | Array<{ message?: { content?: unknown } }>
+    | undefined
+  const rawContent = choices?.[0]?.message?.content
   return {
     content: typeof rawContent === 'string' ? rawContent : String(rawContent ?? ''),
     usedFallback,
