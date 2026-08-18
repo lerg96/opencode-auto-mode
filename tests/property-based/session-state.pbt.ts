@@ -165,6 +165,20 @@ describe('SessionState - Property-Based Tests', () => {
     expect(decisionsAll.length).toBe(10)
   })
 
+  it('getRecentDecisions clamps negative and zero limits', () => {
+    const state = new SessionState()
+    const toolCall = createToolCall()
+
+    for (let i = 0; i < 10; i++) {
+      state.incrementDenial(toolCall, `denial reason ${i}`)
+    }
+
+    expect(state.getRecentDecisions(-1).length).toBe(0)
+    expect(state.getRecentDecisions(-100).length).toBe(0)
+    expect(state.getRecentDecisions(0).length).toBe(0)
+    expect(state.getRecentDecisions(5).length).toBe(5)
+  })
+
   it('allow resets consecutive but does not affect total', () => {
     for (let seq = 0; seq < 10; seq++) {
       const state = new SessionState()

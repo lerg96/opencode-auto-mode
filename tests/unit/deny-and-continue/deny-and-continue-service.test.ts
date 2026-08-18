@@ -164,6 +164,17 @@ describe('DenyAndContinueService', () => {
       service.setDenyMode('auto-retry')
       expect(service.getDenyMode()).toBe('auto-retry')
     })
+
+    it('should default to auto-retry for unknown modes', async () => {
+      const sessionState = new SessionState()
+      const config = { ...DEFAULT_CONFIG, denyMode: 'auto-retry' }
+      const service = new DenyAndContinueService(config as any, sessionState)
+
+      service.setDenyMode('weird-mode' as any)
+
+      const result = await service.handleDeny(createDenialResult())
+      expect(result.type).toBe('auto-retry')
+    })
   })
 
   describe('without blockRule', () => {

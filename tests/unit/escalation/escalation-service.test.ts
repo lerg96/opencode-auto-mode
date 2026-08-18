@@ -52,6 +52,17 @@ describe('EscalationService', () => {
       expect(result.message).toContain('consecutive')
     })
 
+    it('should report both triggers when both thresholds are exceeded', () => {
+      const toolCall = createToolCall()
+      for (let i = 0; i < 20; i++) {
+        sessionState.incrementDenial(toolCall, `Denial ${i}`, 'BR-001', 1)
+      }
+
+      const result = service.checkThresholds()
+      expect(result.escalated).toBe(true)
+      expect(result.message).toContain('consecutive+total')
+    })
+
     it('should not escalate if only total is high but consecutive is low', () => {
       const toolCall = createToolCall()
       for (let i = 0; i < 2; i++) {
@@ -195,7 +206,7 @@ describe('EscalationService', () => {
   })
 
   describe('processDenial', () => {
-    it('should reset both consecutive and total counters', () => {
+    it('should reset consecutive but preserve total counters', () => {
       const toolCall = createToolCall()
       sessionState.incrementDenial(toolCall, 'Deny 1', 'BR-001', 1)
       sessionState.incrementDenial(toolCall, 'Deny 2', 'BR-002', 1)
@@ -203,7 +214,7 @@ describe('EscalationService', () => {
       service.processDenial()
 
       expect(sessionState.getDenialCounters().consecutive).toBe(0)
-      expect(sessionState.getDenialCounters().total).toBe(0)
+      expect(sessionState.getDenialCounters().total).toBe(2)
     })
   })
 

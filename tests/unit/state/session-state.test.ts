@@ -115,6 +115,17 @@ describe('SessionState', () => {
       const decisions = state.getRecentDecisions(3)
       expect(decisions).toHaveLength(3)
     })
+
+    it('should clamp negative limits to zero', () => {
+      const toolCall = createToolCall()
+      for (let i = 0; i < 5; i++) {
+        state.incrementDenial(toolCall, `Denial ${i}`, 'BR-001', 1)
+      }
+
+      expect(state.getRecentDecisions(-1)).toHaveLength(0)
+      expect(state.getRecentDecisions(-100)).toHaveLength(0)
+      expect(state.getRecentDecisions(0)).toHaveLength(0)
+    })
   })
 
   describe('clear', () => {
