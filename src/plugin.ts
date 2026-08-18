@@ -11,7 +11,6 @@ import {
   readSafely,
   isSuspiciousFileContent,
   buildClassifierPrompt as baseBuildClassifierPrompt,
-  SAFE_FILE_SIZE_BYTES,
 } from './utils/FileExtraction.js'
 import { version } from '../package.json'
 
@@ -29,11 +28,34 @@ let client: any = null
 let initialized = false
 const decisions = new Map<string, { decision: string; reason: string }>()
 const agentBySession = new Map<string, string>()
-let consecutiveDenials = 0
-let totalDenials = 0
+const denialBySession = new Map<string, SessionDenialState>()
 let opencodeAllowList: string[] | null = null
 let allowListLoadedAt = 0
 let configMtime = 0
+
+interface SessionDenialState {
+  consecutive: number
+  total: number
+}
+
+function getDenialState(sessionID: string): SessionDenialState {
+  let state = denialBySession.get(sessionID)
+  if (!state) {
+    state = { consecutive: 0, total: 0 }
+    denialBySession.set(sessionID, state)
+  }
+  return state
+}
+
+function recordDenied(sessionID: string): void {
+  const state = getDenialState(sessionID)
+  state.consecutive++
+  state.total++
+}
+
+function recordApproved(sessionID: string): void {
+  getDenialState(sessionID).consecutive = 0
+}
 
 function maybeReloadConfig(): void {
   if (!configManager) return
@@ -144,11 +166,35 @@ function isOpenCodeAllowed(command: string, sessionID: string): boolean {
 }
 
 const SECRET_FILE_PATTERN =
-  /(\.env(\.\w+)?|\bcredentials\b|\.ssh|id_(rsa|ed25519|dsa|ecdsa)|\.netrc|\.npmrc)/i
+  /(\.env(\.\w+)?|\bcredentials\b|\.ssh|id_(rsa|ed25519|dsa|ecdsa)|\.netrc|\.npmrc|\.aws|\.kube|\.pypirc|\.gitconfig)/i
 const SECRET_KEYWORD_PATTERN =
   /(api[_-]?keys?|\bsecrets?\b|\btokens?\b|\bpasswords?\b)/i
 
-const FILE_REGEX = /(?<=\s)([\w._-]+)["']?(?=\s|$|;|\||&|`|"|')/i
+const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
+
+function isSimpleCommand(command: string): boolean {
+  return !SHELL_SEPARATOR_RE.test(command)
+}
+
+const SECRET_ASSIGNMENT_RE =
+  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth(?:orization)?|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
+const SECRET_FLAG_RE =
+  /(--[a-z][\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
+const BEARER_RE = /(Authorization\s*:\s*Bearer\s+)[^\s"';&|`$]+/gi
+const URL_CRED_RE = /(\bhttps?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi
+
+function redact(text: string): string {
+  if (!text) return text
+  return text
+    .replace(SECRET_ASSIGNMENT_RE, '$1=***REDACTED***')
+    .replace(SECRET_FLAG_RE, '$1***REDACTED***')
+    .replace(BEARER_RE, '$1***REDACTED***')
+    .replace(URL_CRED_RE, '$1***REDACTED***@')
+}
+
+function logCmd(text: string, length = 80): string {
+  return redact(String(text)).slice(0, length)
+}
 
 function isSecretFileAccess(command: string): boolean {
   return SECRET_FILE_PATTERN.test(command)
@@ -158,6 +204,10 @@ function isSecretSensitive(command: string): boolean {
   return (
     SECRET_FILE_PATTERN.test(command) || SECRET_KEYWORD_PATTERN.test(command)
   )
+}
+
+function allowListed(command: string, sessionID: string): boolean {
+  return isSimpleCommand(command) && isOpenCodeAllowed(command, sessionID)
 }
 
 export {
@@ -170,20 +220,46 @@ export {
 export { callLlmWithFallback } from './LlmClient.js'
 const buildClassifierPrompt = baseBuildClassifierPrompt
 
+function isValidRegex(pattern: string): boolean {
+  try {
+    new RegExp(pattern)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function normalizePatterns(rules: any[], label: string): any[] {
+  return (rules || []).map((r) => {
+    if (r && r.type === 'pattern' && typeof r.pattern === 'string') {
+      if (r.pattern.startsWith('regex:')) {
+        const body = r.pattern.slice(6)
+        if (!isValidRegex(body)) {
+          log(
+            `WARN: ${label} ${r.id} has invalid regex "${body}" — treated as substring match`
+          )
+          return { ...r, pattern: body }
+        }
+        return r
+      }
+      if (/[\\()|+{}^$\[\]?]/.test(r.pattern)) {
+        if (isValidRegex(r.pattern)) {
+          return { ...r, pattern: `regex:${r.pattern}` }
+        }
+        log(
+          `WARN: ${label} ${r.id} contains regex metacharacters but is not a valid regex ("${r.pattern}") — treated as substring match`
+        )
+      }
+    }
+    return r
+  })
+}
+
 function normalizeRules(rules: any[], softRules?: string[]): any[] {
   const soft = new Set(softRules || [])
-  return (rules || []).map((r) => {
+  return normalizePatterns(rules, 'blockRule').map((r) => {
     if (r && soft.has(r.id)) {
       r = { ...r, severity: 'soft' }
-    }
-    if (
-      r &&
-      r.type === 'pattern' &&
-      typeof r.pattern === 'string' &&
-      !r.pattern.startsWith('regex:') &&
-      /[\\()|+{}^$\[\]?]/.test(r.pattern)
-    ) {
-      return { ...r, pattern: `regex:${r.pattern}` }
     }
     return r
   })
@@ -262,10 +338,6 @@ function callLLMSerialized(prompt: string): Promise<string> {
   return task
 }
 
-export function resetLLMQueue(): void {
-  llmQueue = Promise.resolve()
-}
-
 function parseDecision(text: string): { decision: string; reason: string } {
   try {
     // Strip all code fence patterns: ```json ... ```, ```python ... ```, ``` ... ```
@@ -294,16 +366,12 @@ async function classifyCommand(
 
   if (isSecretSensitive(command)) {
     log(
-      `SECRET-GUARD: "${command.slice(0, 80)}" -> asking user (secret path/keywords)`
+      `SECRET-GUARD: "${logCmd(command)}" -> asking user (secret path/keywords)`
     )
     return {
       decision: 'ask',
       reason: 'Secret keyword detected in command — user confirmation required',
     }
-  }
-  if (isOpenCodeAllowed(command, sessionID)) {
-    log(`ALLOW-LIST skip: "${command.slice(0, 80)}"`)
-    return { decision: 'allow', reason: 'opencode permission allow-list' }
   }
 
   const toolCall: any = {
@@ -316,48 +384,60 @@ async function classifyCommand(
   }
 
   const normalizedRules = normalizeRules(config.blockRules, loadSoftRules())
+  const normalizedExceptions = normalizePatterns(
+    config.allowExceptions || [],
+    'allowException'
+  )
   const ruleResult = (ruleEvaluator as any).evaluate(
     toolCall,
     normalizedRules,
-    config.allowExceptions || [],
+    normalizedExceptions,
     config.trustBoundary
   )
 
   if (ruleResult.evaluation === 'blocked') {
     const ruleId = ruleResult.matchedRule || 'matched'
     const rule = (normalizedRules || []).find((r: any) => r.id === ruleId)
-    const severity = rule?.severity || 'high'
+    const severity = ruleId.startsWith('TB-')
+      ? 'critical'
+      : rule?.severity || 'high'
     const reason = `Rule ${ruleId} blocked command`
     if (severity === 'critical') {
-      log(`RULES deny: "${command.slice(0, 80)}" (${reason})`)
+      log(`RULES deny: "${logCmd(command)}" (${reason})`)
       return { decision: 'deny', reason }
     }
+    if (allowListed(command, sessionID)) {
+      log(`ALLOW-LIST skip: "${logCmd(command)}"`)
+      return { decision: 'allow', reason: 'opencode permission allow-list' }
+    }
     if (severity === 'soft') {
-      log(
-        `RULES soft: "${command.slice(0, 80)}" (${reason}) -> LLM classification`
-      )
+      log(`RULES soft: "${logCmd(command)}" (${reason}) -> LLM classification`)
     } else {
-      log(`RULES ask: "${command.slice(0, 80)}" (${reason})`)
+      log(`RULES ask: "${logCmd(command)}" (${reason})`)
       return {
         decision: 'ask',
         reason: `${reason} — user confirmation required`,
       }
     }
-  }
-  if (ruleResult.evaluation === 'allowed') {
+  } else if (ruleResult.evaluation === 'allowed') {
     log(
-      `RULES allow: "${command.slice(0, 80)}" (${ruleResult.matchedException || 'exception'})`
+      `RULES allow: "${logCmd(command)}" (${ruleResult.matchedException || 'exception'})`
     )
     return { decision: 'allow', reason: 'Allowed by exception' }
   }
+
+  if (allowListed(command, sessionID)) {
+    log(`ALLOW-LIST skip: "${logCmd(command)}"`)
+    return { decision: 'allow', reason: 'opencode permission allow-list' }
+  }
   if (ruleResult.evaluation === 'uncertain') {
     log(
-      `RULES uncertain: "${command.slice(0, 80)}" — ${ruleResult.matchedException || ruleResult.matchedRule || 'no match'} — proceeding to LLM classification`
+      `RULES uncertain: "${logCmd(command)}" — ${ruleResult.matchedException || ruleResult.matchedRule || 'no match'} — proceeding to LLM classification`
     )
   }
 
   if (isSecretFileAccess(command)) {
-    log(`SECRET-GUARD file: "${command.slice(0, 80)}"`)
+    log(`SECRET-GUARD file: "${logCmd(command)}"`)
     return {
       decision: 'ask',
       reason: 'Secret file access — user confirmation required',
@@ -393,24 +473,24 @@ async function classifyCommand(
     )
     const result = parseDecision(text)
     log(
-      `LLM classify: "${command.slice(0, 80)}" (file=${filePath || 'none'}) -> ${result.decision} (${result.reason})`
+      `LLM classify: "${logCmd(command)}" (file=${filePath || 'none'}) -> ${result.decision} (${result.reason})`
     )
-    if (result.decision === 'deny') {
-      // Track LLM denials toward escalation threshold
-      consecutiveDenials++
-      totalDenials++
-      return { decision: 'ask', reason: `LLM flagged: ${result.reason}` }
-    }
     return result
   } catch (e: any) {
-    log(`LLM classify error: ${e?.message || e}`)
+    const errMsg = redact(String(e?.message || e))
+    log(`LLM classify error: ${errMsg}`)
     const fallback = config.fallback || {}
-    const onError = fallback.onError || 'ask-user'
-    if (onError === 'allow')
+    const isTimeout = /timeout|timed out/i.test(String(e?.message || e))
+    const mode = isTimeout ? fallback.onTimeout : fallback.onError
+    const fallbackDecision = mode || 'ask-user'
+    if (fallbackDecision === 'allow')
       return { decision: 'allow', reason: 'LLM error, fallback allow' }
-    if (onError === 'deny')
-      return { decision: 'ask', reason: 'LLM error, fallback ask' }
-    return { decision: 'ask', reason: 'LLM unavailable' }
+    if (fallbackDecision === 'deny')
+      return { decision: 'deny', reason: 'LLM error, fallback deny' }
+    return {
+      decision: 'ask',
+      reason: isTimeout ? 'LLM timeout' : 'LLM unavailable',
+    }
   }
 }
 
@@ -462,15 +542,14 @@ export const opencodeAutoMode = async (
         if (!command || typeof command !== 'string' || command.length === 0)
           return
         if (command.startsWith('# BLOCKED')) return
-        log(`tool.execute.before: ${input.callID} "${command.slice(0, 100)}"`)
+        log(`tool.execute.before: ${input.callID} "${logCmd(command, 100)}"`)
 
         const sessionID = input.sessionID || ''
         const result = await classifyCommand(command, sessionID)
         if (result.decision === 'deny') {
-          consecutiveDenials++
-          totalDenials++
+          recordDenied(sessionID)
         } else {
-          consecutiveDenials = 0
+          recordApproved(sessionID)
         }
         decisions.set(input.callID, result)
         if (decisions.size > 200) {
@@ -488,13 +567,21 @@ export const opencodeAutoMode = async (
         if (!evt || !evt.type) return
 
         if (evt.type === 'session.created') {
-          consecutiveDenials = 0
-          totalDenials = 0
           const info = evt.properties?.info
           if (info?.id && info?.agent) {
             agentBySession.set(info.id, info.agent)
           }
+          if (info?.id) denialBySession.delete(info.id)
           log(`session.created: agent=${info?.agent} session=${info?.id}`)
+        }
+
+        if (evt.type === 'session.deleted') {
+          const info = evt.properties?.info
+          if (info?.id) {
+            denialBySession.delete(info.id)
+            agentBySession.delete(info.id)
+            log(`session.deleted: session=${info?.id}`)
+          }
         }
 
         if (evt.type === 'permission.asked') {
@@ -504,7 +591,7 @@ export const opencodeAutoMode = async (
           const command = props.metadata?.command || ''
           const callID = props.tool?.callID
           log(
-            `permission.asked: ${permissionID} callID=${callID} "${String(command).slice(0, 100)}"`
+            `permission.asked: ${permissionID} callID=${callID} "${logCmd(command, 100)}"`
           )
 
           const config = getConfig()
@@ -513,6 +600,11 @@ export const opencodeAutoMode = async (
           let result = callID ? decisions.get(callID) : undefined
           if (!result && command) {
             result = await classifyCommand(command, sessionID)
+            if (result.decision === 'deny') {
+              recordDenied(sessionID)
+            } else {
+              recordApproved(sessionID)
+            }
           }
           if (callID) decisions.delete(callID)
 
@@ -521,15 +613,16 @@ export const opencodeAutoMode = async (
             return
           }
 
+          const state = getDenialState(sessionID)
           if (
-            consecutiveDenials >= escalation.consecutive &&
+            state.consecutive >= escalation.consecutive &&
             result.decision === 'deny'
           ) {
             log(`permission.asked: escalation threshold reached, asking user`)
             return
           }
 
-          if (totalDenials >= escalation.total) {
+          if (state.total >= escalation.total && result.decision === 'deny') {
             log(`permission.asked: total denial threshold reached, asking user`)
             return
           }
