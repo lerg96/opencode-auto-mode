@@ -288,6 +288,31 @@ describe('PatternMatcher', () => {
       expect(result3.matched).toBe(false)
     })
 
+    it('should reject suspicious regex patterns even when they would match', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'a'.repeat(120) },
+      })
+      const longPattern = 'a'.repeat(105) + '(x)?(y)?'
+      const rule = createBlockRule({ pattern: `regex:${longPattern}` })
+      const result = matcher.match(toolCall, rule)
+
+      expect(result.matched).toBe(false)
+      expect(result.confidence).toBe('low')
+    })
+
+    it('should not match suspicious exception regex patterns even when they would match', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'b'.repeat(120) },
+      })
+      const longPattern = 'b'.repeat(105) + '(x)?(y)?'
+      const exception = createAllowException({
+        pattern: `regex:${longPattern}`,
+      })
+      const result = matcher.matchException(toolCall, exception)
+
+      expect(result).toBe(false)
+    })
+
     it('should not match when suspicious pattern has too many quantifiers', () => {
       const toolCall = createToolCall({
         arguments: { command: 'hello world test' },

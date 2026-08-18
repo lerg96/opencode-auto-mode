@@ -84,8 +84,9 @@ export class PatternMatcher {
     }
     if (isSuspiciousPattern(pattern)) {
       console.warn(
-        `[auto-mode] Pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers)`
+        `[auto-mode] Pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers) — rejected`
       )
+      return 'low'
     }
     try {
       const regex = new RegExp(pattern, 'i')
@@ -121,6 +122,12 @@ export class PatternMatcher {
     pattern: string
   ): boolean {
     if (pattern.length > MAX_PATTERN_LENGTH) {
+      return false
+    }
+    if (isSuspiciousPattern(pattern)) {
+      console.warn(
+        `[auto-mode] Exception pattern matching ReDoS vulnerability (length ${pattern.length}, ${pattern.match(QUANTIFIER_RE)?.length || 0} quantifiers) — rejected`
+      )
       return false
     }
     try {

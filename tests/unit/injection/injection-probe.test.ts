@@ -285,6 +285,22 @@ describe('InjectionProbe', () => {
   })
 
   describe('custom patterns', () => {
+    it('should not carry lastIndex state across scans for patterns with the g flag', async () => {
+      const probe = new InjectionProbe([
+        {
+          type: 'custom',
+          pattern: /SECRET/g,
+          description: 'g-flag pattern',
+        },
+      ])
+
+      expect((await probe.scan('SECRET')).injected).toBe(true)
+
+      const result = await probe.scan('SECRET is here')
+      expect(result.injected).toBe(true)
+      expect(result.pattern).toBe('g-flag pattern')
+    })
+
     it('should detect custom patterns added by user', async () => {
       const customPattern: InjectionPattern = {
         type: 'custom-pattern',
