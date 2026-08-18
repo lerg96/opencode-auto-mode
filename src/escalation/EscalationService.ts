@@ -1,6 +1,7 @@
 import { SessionState } from '../state/SessionState'
 import { EscalationResult } from '../types/EscalationTypes'
 import { PluginConfig } from '../types/PluginConfig'
+import { ToolCall } from '../types/ToolCall'
 
 export class EscalationService {
   private sessionState: SessionState
@@ -58,8 +59,8 @@ export class EscalationService {
     this.sessionState.resetConsecutiveDenials()
   }
 
-  processDenial(): void {
-    this.sessionState.resetConsecutiveDenials()
+  processDenial(toolCall: ToolCall, reasoning: string): void {
+    this.sessionState.incrementDenial(toolCall, reasoning)
   }
 
   getThresholds(): { consecutive: number; total: number } {

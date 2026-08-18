@@ -206,15 +206,34 @@ describe('EscalationService', () => {
   })
 
   describe('processDenial', () => {
-    it('should reset consecutive but preserve total counters', () => {
+    it('should increment both consecutive and total counters', () => {
       const toolCall = createToolCall()
       sessionState.incrementDenial(toolCall, 'Deny 1', 'BR-001', 1)
       sessionState.incrementDenial(toolCall, 'Deny 2', 'BR-002', 1)
 
-      service.processDenial()
+      service.processDenial(toolCall, 'Deny 3')
 
-      expect(sessionState.getDenialCounters().consecutive).toBe(0)
-      expect(sessionState.getDenialCounters().total).toBe(2)
+      expect(sessionState.getDenialCounters().consecutive).toBe(3)
+      expect(sessionState.getDenialCounters().total).toBe(3)
+    })
+
+    it('should increment consecutive from 0 when first denial', () => {
+      const toolCall = createToolCall()
+
+      service.processDenial(toolCall, 'First denial')
+
+      expect(sessionState.getDenialCounters().consecutive).toBe(1)
+      expect(sessionState.getDenialCounters().total).toBe(1)
+    })
+
+    it('should record denial in recent decisions', () => {
+      const toolCall = createToolCall()
+
+      service.processDenial(toolCall, 'New denial reason')
+
+      const decisions = sessionState.getRecentDecisions()
+      expect(decisions).toHaveLength(1)
+      expect(decisions[0].reasoning).toBe('New denial reason')
     })
   })
 
