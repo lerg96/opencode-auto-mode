@@ -842,6 +842,63 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
     })
   })
 
+  describe('softRules auto-reload', () => {
+    function mockLLMResponse(text: string): void {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({ choices: [{ message: { content: text } }] }),
+      } as any)
+    }
+
+    const SOFT_CONFIG = {
+      ...BASE_CONFIG,
+      blockRules: [
+        {
+          id: 'BR-SOFT',
+          type: 'pattern',
+          pattern: 'regex:soft-cmd',
+          severity: 'high',
+          description: 'test',
+          enabled: true,
+        },
+      ],
+      softRules: ['BR-SOFT'],
+    }
+
+    it('detects a softRules rewrite even when the file mtime is unchanged', async () => {
+      writeConfig(SOFT_CONFIG)
+      const cfgPath = path.join(TMP_DIR, 'auto-mode.jsonc')
+      const fixed = new Date(1577836800000)
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      const soft = await M.classifyCommand('soft-cmd', 's1')
+      expect(soft.decision).toBe('allow')
+
+      writeConfig({ ...SOFT_CONFIG, softRules: [] })
+      fs.utimesSync(cfgPath, fixed, fixed)
+      const res = await M.classifyCommand('soft-cmd', 's1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('BR-SOFT')
+    })
+
+    it('defers softRules reload when the config is mid-write (unparseable)', async () => {
+      writeConfig(SOFT_CONFIG)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      expect((await M.classifyCommand('soft-cmd', 's1')).decision).toBe('allow')
+      fs.writeFileSync(path.join(TMP_DIR, 'auto-mode.jsonc'), '{ "broken": ')
+      mockLLMResponse('{"allow":false,"reason":"x"}')
+      const res = await M.classifyCommand('soft-cmd', 's1')
+      expect(res.decision).toBe('deny')
+    })
+  })
+
   describe('session state bounding', () => {
     it('caps the number of tracked sessions to avoid unbounded memory growth', async () => {
       const M = await loadPlugin()
@@ -897,6 +954,35 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         },
       })
       const res = await M.classifyCommand('npm test', 'g1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toBe('x')
+      expect(res.reason).not.toContain('allow-list')
+    })
+
+    it('detects an allow-list rewrite even when the file mtime is unchanged', async () => {
+      writeConfig(BASE_CONFIG)
+      writeOpenCodeConfig({ Bash: { 'ls *': 'allow' } })
+      const ocPath = path.join(TMP_DIR, 'opencode.jsonc')
+      const fixed = new Date(1577836800000)
+      fs.utimesSync(ocPath, fixed, fixed)
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      expect((await M.classifyCommand('ls -la /tmp', 's1')).decision).toBe(
+        'allow'
+      )
+
+      writeOpenCodeConfigRaw({ permission: { Bash: { 'npm *': 'allow' } } })
+      fs.utimesSync(ocPath, fixed, fixed)
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: '{"allow":false,"reason":"x"}' } }],
+          }),
+      } as any)
+      const res = await M.classifyCommand('ls -la /tmp', 's1')
       expect(res.decision).toBe('deny')
       expect(res.reason).toBe('x')
       expect(res.reason).not.toContain('allow-list')

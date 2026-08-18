@@ -34,7 +34,7 @@ let initialized = false
 const decisions = new Map<string, { decision: string; reason: string }>()
 const agentBySession = new Map<string, string>()
 const sessionStates = new Map<string, SessionState>()
-let opencodeAllowListByAgent: Map<string, { patterns: string[]; at: number }> =
+let opencodeAllowListByAgent: Map<string, { patterns: string[]; at: string }> =
   new Map()
 let configSignature = ''
 
@@ -106,9 +106,9 @@ function recordApproved(sessionID: string, command = ''): void {
   )
 }
 
-function computeConfigSignature(): string | null {
+function computeFileSignature(filePath: string): string | null {
   try {
-    const raw = fs.readFileSync(getConfigPath(), 'utf8')
+    const raw = fs.readFileSync(filePath, 'utf8')
     const errors: any[] = []
     parse(raw, errors, { allowTrailingComma: true })
     const hasErrors = errors.some((e) => e && typeof e === 'object')
@@ -121,6 +121,10 @@ function computeConfigSignature(): string | null {
     log(`config signature error: ${e?.message || e}`)
     return null
   }
+}
+
+function computeConfigSignature(): string | null {
+  return computeFileSignature(getConfigPath())
 }
 
 function maybeReloadConfig(): void {
@@ -165,9 +169,12 @@ function collectAllowPatterns(perm: any, patterns: string[]): void {
 function loadOpenCodeAllowList(agentName: string): string[] {
   const configPath = getOpenCodeConfigPath()
   try {
-    const mtime = fs.statSync(configPath).mtimeMs
+    const sig = computeFileSignature(configPath)
+    if (sig === null) {
+      return opencodeAllowListByAgent.get(agentName)?.patterns || []
+    }
     const cached = opencodeAllowListByAgent.get(agentName)
-    if (cached && mtime === cached.at) return cached.patterns
+    if (cached && sig === cached.at) return cached.patterns
     const raw = fs.readFileSync(configPath, 'utf8')
     const parsed = parse(raw)
     const patterns: string[] = []
@@ -177,7 +184,7 @@ function loadOpenCodeAllowList(agentName: string): string[] {
     touchMap(
       opencodeAllowListByAgent,
       agentName,
-      { patterns: unique, at: mtime },
+      { patterns: unique, at: sig },
       MAX_AGENT_TRACKING
     )
     log(
@@ -201,18 +208,18 @@ const patternToRegex = (pattern: string): RegExp => {
 }
 
 let softRulesCache: string[] | null = null
-let softRulesLoadedAt = 0
+let softRulesSignature = ''
 
 function loadSoftRules(): string[] {
-  const configPath = getConfigPath()
   try {
-    const mtime = fs.statSync(configPath).mtimeMs
-    if (softRulesCache && mtime === softRulesLoadedAt) return softRulesCache
-    const raw = fs.readFileSync(configPath, 'utf8')
+    const sig = computeConfigSignature()
+    if (sig === null) return softRulesCache || []
+    if (softRulesCache && sig === softRulesSignature) return softRulesCache
+    const raw = fs.readFileSync(getConfigPath(), 'utf8')
     const parsed = parse(raw)
     const rules = Array.isArray(parsed?.softRules) ? parsed.softRules : []
     softRulesCache = rules
-    softRulesLoadedAt = mtime
+    softRulesSignature = sig
     log(`softRules loaded: ${rules.length} rule(s) [${rules.join(', ')}]`)
     return rules
   } catch {
@@ -677,12 +684,7 @@ export const opencodeAutoMode = async (
         if (evt.type === 'session.created') {
           const info = evt.properties?.info
           if (info?.id && info?.agent) {
-            touchMap(
-              agentBySession,
-              info.id,
-              info.agent,
-              MAX_AGENT_TRACKING
-            )
+            touchMap(agentBySession, info.id, info.agent, MAX_AGENT_TRACKING)
           }
           if (info?.id) sessionStates.delete(info.id)
           log(`session.created: agent=${info?.agent} session=${info?.id}`)
