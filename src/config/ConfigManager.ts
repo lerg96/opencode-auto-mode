@@ -425,7 +425,7 @@ export class ConfigManager {
       if (!fs.existsSync(configPath)) {
         logWarning(`Config file not found at ${configPath}, using defaults`)
         this.rawLlmConfig = undefined
-        const defaultConfig = { ...DEFAULT_CONFIG }
+        const defaultConfig = structuredClone(DEFAULT_CONFIG)
         const defaultRules = loadDefaultBlockRules()
         const defaultExceptions = loadDefaultAllowExceptions()
         defaultConfig.blockRules = defaultRules
@@ -458,7 +458,7 @@ export class ConfigManager {
           `JSONC parse errors: ${errorMessages.join(', ')}, using defaults`
         )
         this.rawLlmConfig = undefined
-        const defaultConfig = { ...DEFAULT_CONFIG }
+          const defaultConfig = structuredClone(DEFAULT_CONFIG)
         const defaultRules = loadDefaultBlockRules()
         const defaultExceptions = loadDefaultAllowExceptions()
         defaultConfig.blockRules = defaultRules
@@ -498,7 +498,7 @@ export class ConfigManager {
     } catch (error) {
       logError('Error loading config file', error)
       this.rawLlmConfig = undefined
-      const defaultConfig = { ...DEFAULT_CONFIG }
+      const defaultConfig = structuredClone(DEFAULT_CONFIG)
       const defaultRules = loadDefaultBlockRules()
       const defaultExceptions = loadDefaultAllowExceptions()
       defaultConfig.blockRules = defaultRules

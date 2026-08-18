@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import { SessionState } from '../../src/state/SessionState'
 import { ToolCall } from '../../src/types/ToolCall'
 
@@ -15,193 +16,209 @@ function createToolCall(overrides: Partial<ToolCall> = {}): ToolCall {
 }
 
 describe('SessionState - Property-Based Tests', () => {
-  it('incrementDenial produces correct counters after N denials', () => {
-    for (let n = 1; n <= 100; n++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
-
-      for (let i = 0; i < n; i++) {
-        state.incrementDenial(toolCall, `denial reason ${i}`)
-      }
-
-      const counters = state.getDenialCounters()
-      expect(counters.consecutive).toBe(n)
-      expect(counters.total).toBe(n)
-    }
+  const bashCallArb = fc.record({
+    toolName: fc.constant('Bash' as any),
+    arguments: fc.record({ command: fc.string() }),
+    context: fc.record({
+      agentName: fc.string(),
+      workingDirectory: fc.string(),
+      sessionId: fc.string(),
+    }),
   })
 
-  it('incrementAllow resets consecutive denials to zero', () => {
-    for (let n = 1; n <= 50; n++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
+  const denialReasonArb = fc.fullUnicodeString().filter((s) => s.length <= 40)
 
-      for (let i = 0; i < n; i++) {
-        state.incrementDenial(toolCall, `denial reason ${i}`)
-      }
+  const posInt50Arb = fc.integer({ min: 1, max: 50 })
+  const posInt100Arb = fc.integer({ min: 1, max: 100 })
 
-      state.incrementAllow(toolCall, 'allowed reason')
+  describe('Denial counter properties', () => {
+    it('incrementDenial increments both counters by exactly one per call', () => {
+      fc.assert(
+        fc.property(posInt100Arb, bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, `${reason}-${i}`)
+          }
+          const counters = state.getDenialCounters()
+          expect(counters.consecutive).toBe(n)
+          expect(counters.total).toBe(n)
+        })
+      )
+    })
 
-      const counters = state.getDenialCounters()
-      expect(counters.consecutive).toBe(0)
-      expect(counters.total).toBe(n)
-    }
+    it('incrementAllow resets consecutive to zero while preserving total', () => {
+      fc.assert(
+        fc.property(posInt50Arb, bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, `${reason}-${i}`)
+          }
+          state.incrementAllow(call, 'allowed')
+          const counters = state.getDenialCounters()
+          expect(counters.consecutive).toBe(0)
+          expect(counters.total).toBe(n)
+        })
+      )
+    })
+
+    it('mixed allow/deny sequence tracks counters deterministically', () => {
+      fc.assert(
+        fc.property(bashCallArb, denialReasonArb, (call, reason) => {
+          const state = new SessionState()
+          let consecutive = 0
+          let total = 0
+          for (let i = 0; i < 100; i++) {
+            if (i % 3 === 2) {
+              state.incrementAllow(call, 'allowed')
+              consecutive = 0
+            } else {
+              state.incrementDenial(call, reason)
+              consecutive++
+              total++
+            }
+          }
+          const counters = state.getDenialCounters()
+          expect(counters.consecutive).toBe(consecutive)
+          expect(counters.total).toBe(total)
+        })
+      )
+    })
   })
 
-  it('mixed allow/deny sequence produces correct counters', () => {
-    for (let seq = 0; seq < 20; seq++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
-      let consecutive = 0
-      let total = 0
+  describe('Reset and clear properties', () => {
+    it('clear resets all counters and decision history', () => {
+      fc.assert(
+        fc.property(posInt50Arb, bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, `${reason}-${i}`)
+          }
+          state.clear()
+          expect(state.getDenialCounters().consecutive).toBe(0)
+          expect(state.getDenialCounters().total).toBe(0)
+          expect(state.getRecentDecisions().length).toBe(0)
+        })
+      )
+    })
 
-      for (let i = 0; i < 100; i++) {
-        if (i % 3 === 2) {
-          // Every 3rd action is allow
-          state.incrementAllow(toolCall, 'allowed reason')
-          consecutive = 0
-        } else {
-          state.incrementDenial(toolCall, 'denial reason')
-          consecutive++
-          total++
-        }
-      }
+    it('resetConsecutiveDenials resets only consecutive counter', () => {
+      fc.assert(
+        fc.property(posInt50Arb, bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, reason)
+          }
+          state.resetConsecutiveDenials()
+          expect(state.getConsecutiveDenialCount()).toBe(0)
+          expect(state.getTotalDenialCount()).toBe(n)
+        })
+      )
+    })
 
-      const counters = state.getDenialCounters()
-      expect(counters.consecutive).toBe(consecutive)
-      expect(counters.total).toBe(total)
-    }
+    it('resetTotalDenials resets only total counter', () => {
+      fc.assert(
+        fc.property(posInt50Arb, bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, reason)
+          }
+          state.resetTotalDenials()
+          expect(state.getConsecutiveDenialCount()).toBe(n)
+          expect(state.getTotalDenialCount()).toBe(0)
+        })
+      )
+    })
+
+    it('allow resets consecutive but leaves total unchanged', () => {
+      fc.assert(
+        fc.property(bashCallArb, denialReasonArb, (call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < 5; i++) {
+            state.incrementDenial(call, reason)
+          }
+          state.incrementAllow(call, 'allowed')
+          expect(state.getConsecutiveDenialCount()).toBe(0)
+          expect(state.getTotalDenialCount()).toBe(5)
+          for (let i = 0; i < 3; i++) {
+            state.incrementDenial(call, reason)
+          }
+          expect(state.getConsecutiveDenialCount()).toBe(3)
+          expect(state.getTotalDenialCount()).toBe(8)
+        })
+      )
+    })
   })
 
-  it('clear resets all state', () => {
-    for (let n = 1; n <= 50; n++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
+  describe('Decision history properties', () => {
+    it('recent decisions are capped at MAX_DECISION_HISTORY (10) for any number of denials', () => {
+      fc.assert(
+        fc.property(fc.nat({ max: 200 }), bashCallArb, denialReasonArb, (n, call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < n; i++) {
+            state.incrementDenial(call, `${reason}-${i}`)
+          }
+          const decisions = state.getRecentDecisions()
+          expect(decisions.length).toBeLessThanOrEqual(10)
+          if (n <= 10) {
+            expect(decisions.length).toBe(n)
+          }
+        })
+      )
+    })
 
-      for (let i = 0; i < n; i++) {
-        state.incrementDenial(toolCall, `denial reason ${i}`)
-      }
+    it('recent decisions are returned in FIFO order for entries within the window', () => {
+      fc.assert(
+        fc.property(bashCallArb, denialReasonArb, (call, reason) => {
+          const state = new SessionState()
+          for (let i = 0; i < 15; i++) {
+            state.incrementDenial(call, `${reason}-${i}`)
+          }
+          const decisions = state.getRecentDecisions()
+          expect(decisions.length).toBe(10)
+          expect(decisions[0].reasoning).toBe(`${reason}-5`)
+          expect(decisions[9].reasoning).toBe(`${reason}-14`)
+        })
+      )
+    })
 
-      state.clear()
+    it('getRecentDecisions with a positive limit returns the requested tail subset', () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 2, max: 10 }),
+          bashCallArb,
+          denialReasonArb,
+          (limit, call, reason) => {
+            const state = new SessionState()
+            for (let i = 0; i < 20; i++) {
+              state.incrementDenial(call, `${reason}-${i}`)
+            }
+            const decisions = state.getRecentDecisions(limit)
+            expect(decisions.length).toBe(limit)
+            expect(decisions[0].reasoning).toBe(`${reason}-${20 - limit}`)
+            expect(decisions[limit - 1].reasoning).toBe(`${reason}-19`)
+          }
+        )
+      )
+    })
 
-      const counters = state.getDenialCounters()
-      expect(counters.consecutive).toBe(0)
-      expect(counters.total).toBe(0)
-      expect(state.getRecentDecisions().length).toBe(0)
-    }
-  })
-
-  it('resetConsecutiveDenials only resets consecutive counter', () => {
-    for (let n = 1; n <= 50; n++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
-
-      for (let i = 0; i < n; i++) {
-        state.incrementDenial(toolCall, 'denial reason')
-      }
-
-      state.resetConsecutiveDenials()
-
-      expect(state.getConsecutiveDenialCount()).toBe(0)
-      expect(state.getTotalDenialCount()).toBe(n)
-    }
-  })
-
-  it('resetTotalDenials only resets total counter', () => {
-    for (let n = 1; n <= 50; n++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
-
-      for (let i = 0; i < n; i++) {
-        state.incrementDenial(toolCall, 'denial reason')
-      }
-
-      state.resetTotalDenials()
-
-      expect(state.getConsecutiveDenialCount()).toBe(n)
-      expect(state.getTotalDenialCount()).toBe(0)
-    }
-  })
-
-  it('recent decisions are capped at MAX_DECISION_HISTORY (10)', () => {
-    const state = new SessionState()
-    const toolCall = createToolCall()
-
-    for (let i = 0; i < 50; i++) {
-      state.incrementDenial(toolCall, `denial reason ${i}`)
-    }
-
-    const decisions = state.getRecentDecisions()
-    expect(decisions.length).toBe(10)
-  })
-
-  it('recent decisions are returned in FIFO order (oldest first)', () => {
-    const state = new SessionState()
-    const toolCall = createToolCall()
-
-    for (let i = 0; i < 15; i++) {
-      state.incrementDenial(toolCall, `denial reason ${i}`)
-    }
-
-    const decisions = state.getRecentDecisions()
-    expect(decisions.length).toBe(10)
-    expect(decisions[0].reasoning).toBe('denial reason 5')
-    expect(decisions[9].reasoning).toBe('denial reason 14')
-  })
-
-  it('getRecentDecisions with limit returns subset', () => {
-    const state = new SessionState()
-    const toolCall = createToolCall()
-
-    for (let i = 0; i < 20; i++) {
-      state.incrementDenial(toolCall, `denial reason ${i}`)
-    }
-
-    const decisions3 = state.getRecentDecisions(3)
-    expect(decisions3.length).toBe(3)
-    expect(decisions3[0].reasoning).toBe('denial reason 17')
-    expect(decisions3[2].reasoning).toBe('denial reason 19')
-
-    const decisionsAll = state.getRecentDecisions()
-    expect(decisionsAll.length).toBe(10)
-  })
-
-  it('getRecentDecisions clamps negative and zero limits', () => {
-    const state = new SessionState()
-    const toolCall = createToolCall()
-
-    for (let i = 0; i < 10; i++) {
-      state.incrementDenial(toolCall, `denial reason ${i}`)
-    }
-
-    expect(state.getRecentDecisions(-1).length).toBe(0)
-    expect(state.getRecentDecisions(-100).length).toBe(0)
-    expect(state.getRecentDecisions(0).length).toBe(0)
-    expect(state.getRecentDecisions(5).length).toBe(5)
-  })
-
-  it('allow resets consecutive but does not affect total', () => {
-    for (let seq = 0; seq < 10; seq++) {
-      const state = new SessionState()
-      const toolCall = createToolCall()
-
-      // 5 denials
-      for (let i = 0; i < 5; i++) {
-        state.incrementDenial(toolCall, 'denial reason')
-      }
-      expect(state.getConsecutiveDenialCount()).toBe(5)
-      expect(state.getTotalDenialCount()).toBe(5)
-
-      // 1 allow
-      state.incrementAllow(toolCall, 'allowed reason')
-      expect(state.getConsecutiveDenialCount()).toBe(0)
-      expect(state.getTotalDenialCount()).toBe(5)
-
-      // 3 more denials
-      for (let i = 0; i < 3; i++) {
-        state.incrementDenial(toolCall, 'denial reason')
-      }
-      expect(state.getConsecutiveDenialCount()).toBe(3)
-      expect(state.getTotalDenialCount()).toBe(8)
-    }
+    it('getRecentDecisions clamps negative and zero limits to an empty array', () => {
+      fc.assert(
+        fc.property(
+          fc.array(fc.oneof(fc.nat({ max: 100 }), fc.constant(0)), { minLength: 3, maxLength: 10 }),
+          bashCallArb,
+          denialReasonArb,
+          (limits, call, reason) => {
+            const state = new SessionState()
+            for (let i = 0; i < 10; i++) {
+              state.incrementDenial(call, `${reason}-${i}`)
+            }
+            for (const limit of limits) {
+              const decisions = state.getRecentDecisions(limit)
+              expect(decisions.length).toBe(limit <= 0 ? 0 : Math.min(limit, 10))
+            }
+          }
+        )
+      )
+    })
   })
 })

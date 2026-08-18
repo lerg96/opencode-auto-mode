@@ -658,3 +658,80 @@ describe('ConfigManager - Extensible Rules Framework', () => {
     })
   })
 })
+
+describe('ConfigManager - DEFAULT_CONFIG aliasing safety', () => {
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    jest.resetModules()
+    process.env = { ...originalEnv }
+    process.env.HOME = '/tmp/test-home'
+    ;(path.join as jest.Mock).mockImplementation((...args: string[]) =>
+      args.join('/')
+    )
+  })
+
+  afterEach(() => {
+    process.env = originalEnv
+  })
+
+  it('should deep-clone trustBoundary so it is not aliased to DEFAULT_TRUST_BOUNDARY', () => {
+    ;(fs.existsSync as jest.Mock).mockReturnValue(false)
+
+    const manager1 = new ConfigManager('/missing1.jsonc')
+    const config1 = manager1.getConfig()
+
+    config1.trustBoundary.protectedPaths.push('MUTATED')
+
+    const manager2 = new ConfigManager('/missing2.jsonc')
+    const config2 = manager2.getConfig()
+
+    expect(config2.trustBoundary.protectedPaths).not.toContain('MUTATED')
+  })
+
+  it('should deep-clone excludedAgents via structuredClone path', () => {
+    ;(fs.existsSync as jest.Mock).mockReturnValue(false)
+
+    const manager1 = new ConfigManager('/missing1.jsonc')
+    const config1 = manager1.getConfig()
+
+    config1.excludedAgents.push('MUTATED')
+
+    const manager2 = new ConfigManager('/missing2.jsonc')
+    const config2 = manager2.getConfig()
+
+    expect(config2.excludedAgents).not.toContain('MUTATED')
+  })
+
+  it('should deep-clone trustBoundary after parse error', () => {
+    ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+    ;(fs.readFileSync as jest.Mock).mockReturnValue('invalid jsonc {[[[')
+
+    const manager1 = new ConfigManager('/test1/config.jsonc')
+    const config1 = manager1.getConfig()
+
+    config1.trustBoundary.protectedPaths.push('MUTATED')
+
+    const manager2 = new ConfigManager('/test2/config.jsonc')
+    const config2 = manager2.getConfig()
+
+    expect(config2.trustBoundary.protectedPaths).not.toContain('MUTATED')
+  })
+
+  it('should deep-clone trustBoundary after file read error', () => {
+    ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+    ;(fs.readFileSync as jest.Mock).mockImplementation(() => {
+      throw new Error('disk error')
+    })
+
+    const manager1 = new ConfigManager('/error1/config.jsonc')
+    const config1 = manager1.getConfig()
+
+    config1.trustBoundary.protectedPaths.push('MUTATED')
+
+    const manager2 = new ConfigManager('/error2/config.jsonc')
+    const config2 = manager2.getConfig()
+
+    expect(config2.trustBoundary.protectedPaths).not.toContain('MUTATED')
+  })
+})
