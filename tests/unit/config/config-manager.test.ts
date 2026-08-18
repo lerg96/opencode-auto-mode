@@ -88,6 +88,68 @@ describe('ConfigManager', () => {
 
       expect(Array.isArray(config.blockRules)).toBe(true)
     })
+
+    it('should reset rawLlmConfig when config file is missing on reload', () => {
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({ llm: { provider: 'openai', model: 'gpt-4' } })
+      )
+
+      const manager = new ConfigManager('/test/config.jsonc')
+      expect(manager.getRawLlmConfig()).toBeDefined()
+
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
+      manager.load('/other/missing.jsonc')
+
+      expect(manager.getRawLlmConfig()).toBeUndefined()
+    })
+
+    it('should reset rawLlmConfig when reload throws', () => {
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({ llm: { provider: 'openai', model: 'gpt-4' } })
+      )
+
+      const manager = new ConfigManager('/test/config.jsonc')
+      expect(manager.getRawLlmConfig()).toBeDefined()
+
+      ;(fs.readFileSync as jest.Mock).mockImplementation(() => {
+        throw new Error('disk error')
+      })
+      manager.load('/other/error.jsonc')
+
+      expect(manager.getRawLlmConfig()).toBeUndefined()
+    })
+
+    it('should apply default excludedAgents when config omits them', () => {
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({ llm: { provider: 'openai', model: 'gpt-4' } })
+      )
+
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
+
+      expect(config.excludedAgents).toEqual(['explore', 'research'])
+      expect(manager.isAgentExcluded('explore')).toBe(true)
+    })
+
+    it('should keep custom excludedAgents when provided', () => {
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(
+        JSON.stringify({
+          llm: { provider: 'openai', model: 'gpt-4' },
+          excludedAgents: ['my-agent'],
+        })
+      )
+
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
+
+      expect(config.excludedAgents).toEqual(['my-agent'])
+      expect(manager.isAgentExcluded('my-agent')).toBe(true)
+      expect(manager.isAgentExcluded('explore')).toBe(false)
+    })
   })
 
   describe('load', () => {

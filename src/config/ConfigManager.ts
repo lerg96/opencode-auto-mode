@@ -42,15 +42,14 @@ function resolveModuleDir(): string {
 }
 
 function loadDefaultBlockRules(): BlockRule[] {
-  const rulesPath = path.join(
-    resolveModuleDir(),
-    'default-block-rules.jsonc'
-  )
+  const rulesPath = path.join(resolveModuleDir(), 'default-block-rules.jsonc')
   try {
     if (fs.existsSync(rulesPath)) {
       const content = fs.readFileSync(rulesPath, 'utf-8')
       const errors: any[] = []
-      const result = parse(content, errors, { allowTrailingComma: true }) as unknown
+      const result = parse(content, errors, {
+        allowTrailingComma: true,
+      }) as unknown
       const realErrors = errors.filter((e) => e && typeof e === 'object')
       if (realErrors.length > 0) {
         logWarning('Errors parsing default block rules, using bundled defaults')
@@ -352,10 +351,7 @@ function loadDefaultBlockRules(): BlockRule[] {
 }
 
 function loadDefaultAllowExceptions(): AllowException[] {
-  const rulesPath = path.join(
-    resolveModuleDir(),
-    'default-block-rules.jsonc'
-  )
+  const rulesPath = path.join(resolveModuleDir(), 'default-block-rules.jsonc')
   try {
     if (fs.existsSync(rulesPath)) {
       const content = fs.readFileSync(rulesPath, 'utf-8')
@@ -428,6 +424,7 @@ export class ConfigManager {
     try {
       if (!fs.existsSync(configPath)) {
         logWarning(`Config file not found at ${configPath}, using defaults`)
+        this.rawLlmConfig = undefined
         const defaultConfig = { ...DEFAULT_CONFIG }
         const defaultRules = loadDefaultBlockRules()
         const defaultExceptions = loadDefaultAllowExceptions()
@@ -438,7 +435,9 @@ export class ConfigManager {
 
       const content = fs.readFileSync(configPath, 'utf-8')
       const errors: any[] = []
-      const parsed = parse(content, errors, { allowTrailingComma: true }) as unknown
+      const parsed = parse(content, errors, {
+        allowTrailingComma: true,
+      }) as unknown
 
       // Capture raw llm config before applying defaults for runtime checks
       const parsedObj =
@@ -470,6 +469,9 @@ export class ConfigManager {
       if (!validateRequiredFields(parsed)) {
         logWarning('Missing required config fields, using defaults')
         const merged = applyDefaults(parsed)
+        if (!Array.isArray(parsedObj.excludedAgents)) {
+          merged.excludedAgents = [...DEFAULT_CONFIG.excludedAgents]
+        }
         const defaultRules = loadDefaultBlockRules()
         const defaultExceptions = loadDefaultAllowExceptions()
         merged.blockRules = defaultRules.concat(
@@ -482,6 +484,9 @@ export class ConfigManager {
       }
 
       const merged = applyDefaults(parsed)
+      if (!Array.isArray(parsedObj.excludedAgents)) {
+        merged.excludedAgents = [...DEFAULT_CONFIG.excludedAgents]
+      }
       const defaultRules = loadDefaultBlockRules()
       const defaultExceptions = loadDefaultAllowExceptions()
       merged.blockRules = defaultRules.concat(merged.blockRules as BlockRule[])
@@ -492,6 +497,7 @@ export class ConfigManager {
       return merged
     } catch (error) {
       logError('Error loading config file', error)
+      this.rawLlmConfig = undefined
       const defaultConfig = { ...DEFAULT_CONFIG }
       const defaultRules = loadDefaultBlockRules()
       const defaultExceptions = loadDefaultAllowExceptions()
