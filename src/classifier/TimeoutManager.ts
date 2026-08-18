@@ -56,14 +56,19 @@ export class TimeoutManager {
 
 const TIMEOUT_ID_SYMBOL = Symbol('timeoutId')
 
-function attachTimeoutId(controller: AbortController, timeoutId: unknown): void {
+type TimeoutId = ReturnType<typeof setTimeout>
+
+function attachTimeoutId(
+  controller: AbortController,
+  timeoutId: TimeoutId
+): void {
   ;(controller as unknown as Record<symbol, unknown>)[TIMEOUT_ID_SYMBOL] =
     timeoutId
 }
 
-function detachTimeoutId(controller: AbortController): unknown {
+function detachTimeoutId(controller: AbortController): TimeoutId | undefined {
   const holder = controller as unknown as Record<symbol, unknown>
-  const timeoutId = holder[TIMEOUT_ID_SYMBOL]
+  const timeoutId = holder[TIMEOUT_ID_SYMBOL] as TimeoutId | undefined
   delete holder[TIMEOUT_ID_SYMBOL]
   return timeoutId
 }
