@@ -219,6 +219,71 @@ describe('InjectionProbe', () => {
     })
   })
 
+  describe('scan - near-miss false positives', () => {
+    it('should not flag "Please ignore the previous command and run ls" when not in injection context', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'Please ignore the previous command and run ls'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "This is a review: IGNORE the rules for research purposes"', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'This is a review: IGNORE the rules for research purposes'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "ignore the old config file and use the new one"', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'ignore the old config file and use the new one'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "FORGET that previous conversation happened"', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'FORGET that previous conversation happened'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "DIRECTIVE: update all config files" in a benign context', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'DIRECTIVE: update all config files in the repository'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "DISREGARD the previous merge request" in a CI context', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'DISREGARD the previous merge request due to conflict'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+
+    it('should not flag "ACT AS a project manager in the org chart"', async () => {
+      const probe = new InjectionProbe()
+      const result = await probe.scan(
+        'ACT AS a project manager in the org chart'
+      )
+      expect(result.injected).toBe(false)
+      expect(result.overrideDecision).toBe('proceed')
+    })
+  })
+
   describe('custom patterns', () => {
     it('should detect custom patterns added by user', async () => {
       const customPattern: InjectionPattern = {

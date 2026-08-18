@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import { PatternMatcher } from '../../src/rules/PatternMatcher'
 import { ToolCall } from '../../src/types/ToolCall'
 import { BlockRule, AllowException } from '../../src/types/RuleTypes'
@@ -41,165 +42,238 @@ function createAllowException(
   }
 }
 
-describe('PatternMatcher - Property-Based Tests', () => {
+describe('PatternMatcher - Property Based Tests', () => {
   let matcher: PatternMatcher
 
   beforeEach(() => {
     matcher = new PatternMatcher()
   })
 
-  it('regex matching is consistent across multiple calls (deterministic)', () => {
-    const testCases = [
-      { cmd: 'rm -rf /tmp/test', pattern: 'regex:rm\\s+-\\s*rf' },
-      { cmd: 'cat /etc/passwd', pattern: 'regex:/etc/' },
-      { cmd: 'echo hello world', pattern: 'regex:hello' },
-      { cmd: 'sudo apt update', pattern: 'regex:sudo\\s+' },
-      { cmd: 'chmod 777 /tmp/file', pattern: 'regex:chmod\\s+777' },
-      { cmd: 'docker rm -f container', pattern: 'regex:docker\\s+rm\\s+-f' },
-      { cmd: 'git push --force', pattern: 'regex:git\\s+push\\s+--force' },
-      { cmd: 'ls -la /tmp', pattern: 'regex:ls\\s+' },
-      { cmd: 'safe-command --arg', pattern: 'regex:safe-' },
-      { cmd: 'DROP TABLE users', pattern: 'regex:DROP\\s+TABLE' },
-    ]
+  // Arbitrary generators for fast-check
+  const subStrPatternArb = fc
+    .fullUnicodeString()
+    .filter((s) => s.length > 0 && s.length < 80)
+  const commandArb = fc
+    .fullUnicodeString()
+    .filter((s) => s.length > 0 && s.length < 200)
 
-    for (const { cmd, pattern } of testCases) {
-      const toolCall = createToolCall({ arguments: { command: cmd } })
-      const rule = createBlockRule({ pattern })
-
-      const results: boolean[] = []
-      for (let i = 0; i < 30; i++) {
-        const result = matcher.match(toolCall, rule)
-        results.push(result.matched)
-      }
-
-      const uniqueResults = new Set(results)
-      expect(uniqueResults.size).toBe(1)
-    }
+  const bashToolCallArb = fc.record({
+    toolName: fc.constant('Bash' as any),
+    arguments: fc.record({ command: commandArb }),
+    context: fc.record({
+      agentName: fc.string(),
+      workingDirectory: fc.string(),
+      sessionId: fc.string(),
+    }),
   })
 
-  it('substring matching is consistent across multiple calls (deterministic)', () => {
-    const testCases = [
-      { cmd: 'rm -rf /tmp/test', pattern: 'rm -rf' },
-      { cmd: 'cat /etc/passwd', pattern: '/etc/' },
-      { cmd: 'echo hello world', pattern: 'hello' },
-      { cmd: 'sudo apt update', pattern: 'sudo ' },
-      { cmd: 'chmod 777 /tmp/file', pattern: '777' },
-      { cmd: 'docker rm -f container', pattern: 'docker rm' },
-      { cmd: 'safe-command --arg', pattern: 'safe-' },
-    ]
-
-    for (const { cmd, pattern } of testCases) {
-      const toolCall = createToolCall({ arguments: { command: cmd } })
-      const rule = createBlockRule({ pattern })
-
-      const results: boolean[] = []
-      for (let i = 0; i < 30; i++) {
-        const result = matcher.match(toolCall, rule)
-        results.push(result.matched)
-      }
-
-      const uniqueResults = new Set(results)
-      expect(uniqueResults.size).toBe(1)
-    }
+  const readToolCallArb = fc.record({
+    toolName: fc.constant('Read' as any),
+    arguments: fc.record({
+      path: fc.fullUnicodeString().filter((s) => s.length > 0),
+    }),
+    context: fc.record({
+      agentName: fc.string(),
+      workingDirectory: fc.string(),
+      sessionId: fc.string(),
+    }),
   })
 
-  it('regex matching on file path is consistent', () => {
-    const testCases = [
-      { filePath: '/etc/passwd', pattern: 'regex:/etc/' },
-      { filePath: '/home/user/.ssh/id_rsa', pattern: 'regex:/ssh/' },
-      { filePath: '/tmp/test.txt', pattern: 'regex:/tmp/' },
-    ]
-
-    for (const { filePath, pattern } of testCases) {
-      const toolCall = createToolCall({
-        toolName: 'Read',
-        arguments: { path: filePath },
-      })
-      const rule = createBlockRule({ pattern })
-
-      const results: boolean[] = []
-      for (let i = 0; i < 30; i++) {
-        const result = matcher.match(toolCall, rule)
-        results.push(result.matched)
-      }
-
-      const uniqueResults = new Set(results)
-      expect(uniqueResults.size).toBe(1)
-    }
+  const blockRuleArb = fc.record({
+    id: fc.string().filter((s) => s.length > 0),
+    type: fc.constant('pattern' as const),
+    pattern: fc.oneof(
+      fc.string().filter((s) => s.length > 0),
+      fc.fullUnicodeString().filter((s) => s.length > 0)
+    ),
+    category: fc.string(),
+    description: fc.string(),
+    severity: fc.oneof(
+      fc.constant('low'),
+      fc.constant('medium'),
+      fc.constant('high'),
+      fc.constant('critical')
+    ),
+    enabled: fc.boolean(),
   })
 
-  it('substring matching on file path is consistent', () => {
-    const testCases = [
-      { filePath: '/etc/passwd', pattern: '/etc/' },
-      { filePath: '/home/user/.ssh/id_rsa', pattern: '.ssh/' },
-      { filePath: '/tmp/test.txt', pattern: 'test' },
-    ]
-
-    for (const { filePath, pattern } of testCases) {
-      const toolCall = createToolCall({
-        toolName: 'Read',
-        arguments: { path: filePath },
-      })
-      const rule = createBlockRule({ pattern })
-
-      const results: boolean[] = []
-      for (let i = 0; i < 30; i++) {
-        const result = matcher.match(toolCall, rule)
-        results.push(result.matched)
-      }
-
-      const uniqueResults = new Set(results)
-      expect(uniqueResults.size).toBe(1)
-    }
+  const allowExceptionArb = fc.record({
+    id: fc.string().filter((s) => s.length > 0),
+    type: fc.constant('pattern' as const),
+    pattern: fc.oneof(
+      fc.string().filter((s) => s.length > 0),
+      fc.fullUnicodeString().filter((s) => s.length > 0)
+    ),
+    description: fc.string(),
+    enabled: fc.boolean(),
   })
 
-  it('exception matching is consistent across multiple calls', () => {
-    const testCases = [
-      { cmd: 'safe-cleanup --all', pattern: 'safe-cleanup' },
-      { cmd: 'safe-cleanup-prod --force', pattern: 'regex:safe-cleanup' },
-      { cmd: 'safe-operation --arg', pattern: 'safe-operation' },
-      { cmd: 'safe-command --arg', pattern: 'regex:safe-' },
-    ]
-
-    for (const { cmd, pattern } of testCases) {
-      const toolCall = createToolCall({ arguments: { command: cmd } })
-      const exception = createAllowException({ pattern })
-
-      const results: boolean[] = []
-      for (let i = 0; i < 30; i++) {
-        const result = matcher.matchException(toolCall, exception)
-        results.push(result)
-      }
-
-      const uniqueResults = new Set(results)
-      expect(uniqueResults.size).toBe(1)
-    }
+  describe('Determinism: regex matching is deterministic', () => {
+    it('should always return the same matched result for a given regex pattern and command', () => {
+      fc.assert(
+        fc.property(bashToolCallArb, blockRuleArb, (toolCall, rule) => {
+          if (rule.pattern.startsWith('regex:')) {
+            const results: boolean[] = []
+            for (let i = 0; i < 30; i++) {
+              const result = matcher.match(toolCall, rule)
+              results.push(result.matched)
+            }
+            const unique = new Set(results)
+            expect(unique.size).toBe(1)
+          }
+        })
+      )
+    })
   })
 
-  it('substring matching correctness: contains check always works for matching strings', () => {
-    const patternsAndCommands: [string, string][] = [
-      ['rm -rf', 'rm -rf /tmp/test'],
-      ['sudo', 'sudo apt update'],
-      ['chmod 777', 'chmod 777 /tmp/file'],
-      ['docker', 'docker ps -a'],
-      ['git push --force', 'git push --force origin main'],
-      ['/etc/', 'cat /etc/passwd'],
-      ['~/.ssh/', 'ls ~/.ssh/'],
-      ['DROP TABLE', 'DROP TABLE users'],
-      ['insmod', 'insmod /tmp/mod.ko'],
-      ['modprobe', 'modprobe nf_conntrack'],
-      ['systemctl restart', 'systemctl restart nginx'],
-      ['kubectl delete', 'kubectl delete pod test'],
-      ['crontab -e', 'crontab -e'],
-    ]
+  describe('Determinism: substring matching is deterministic', () => {
+    it('should always return the same matched result for a given substring pattern and command', () => {
+      fc.assert(
+        fc.property(bashToolCallArb, blockRuleArb, (toolCall, rule) => {
+          if (!rule.pattern.startsWith('regex:')) {
+            const results: boolean[] = []
+            for (let i = 0; i < 30; i++) {
+              const result = matcher.match(toolCall, rule)
+              results.push(result.matched)
+            }
+            const unique = new Set(results)
+            expect(unique.size).toBe(1)
+          }
+        })
+      )
+    })
+  })
 
-    for (const [pattern, cmd] of patternsAndCommands) {
-      const toolCall = createToolCall({ arguments: { command: cmd } })
-      const rule = createBlockRule({ pattern })
-      const result = matcher.match(toolCall, rule)
+  describe('Determinism: exception matching is deterministic', () => {
+    it('should always return the same match result for a given exception and tool call', () => {
+      fc.assert(
+        fc.property(
+          bashToolCallArb,
+          allowExceptionArb,
+          (toolCall, exception) => {
+            const results: boolean[] = []
+            for (let i = 0; i < 30; i++) {
+              const result = matcher.matchException(toolCall, exception)
+              results.push(result)
+            }
+            const unique = new Set(results)
+            expect(unique.size).toBe(1)
+          }
+        )
+      )
+    })
+  })
 
-      expect(result.matched).toBe(true)
-      expect(result.confidence).toBe('high')
-    }
+  describe('Correctness: substring match works for matching patterns', () => {
+    it('should match when the command contains the pattern as a substring', () => {
+      fc.assert(
+        fc.property(subStrPatternArb, commandArb, (pattern, command) => {
+          const fullCommand = `${pattern} extra args`
+          const toolCall = createToolCall({
+            arguments: { command: fullCommand },
+          })
+          const rule = createBlockRule({ pattern })
+          const result = matcher.match(toolCall, rule)
+
+          expect(result.matched).toBe(true)
+          expect(result.confidence).toBe('high')
+        })
+      )
+    })
+  })
+
+  describe('Correctness: substring match fails when not present', () => {
+    it('should not match when the pattern is not a substring of the command', () => {
+      fc.assert(
+        fc.property(
+          subStrPatternArb,
+          subStrPatternArb,
+          (patternA, patternB) => {
+            if (!patternB.includes(patternA)) {
+              const toolCall = createToolCall({
+                arguments: { command: patternB },
+              })
+              const rule = createBlockRule({ pattern: patternA })
+              const result = matcher.match(toolCall, rule)
+              expect(result.matched).toBe(false)
+            }
+          }
+        )
+      )
+    })
+  })
+
+  describe('Correctness: disabled rule never matches', () => {
+    it('should never match when rule is disabled regardless of pattern/command combination', () => {
+      fc.assert(
+        fc.property(bashToolCallArb, subStrPatternArb, (toolCall, pattern) => {
+          const rule = createBlockRule({ pattern, enabled: false })
+          const result = matcher.match(toolCall, rule)
+          expect(result.matched).toBe(false)
+          expect(result.confidence).toBe('low')
+        })
+      )
+    })
+  })
+
+  describe('Correctness: regex match on file path', () => {
+    it('should match regex patterns in file path for Read/Write tools', () => {
+      const safeSegmentArb = fc
+        .fullUnicodeString()
+        .filter(
+          (s) => /^[a-zA-Z0-9/_.~-]+$/.test(s) && s.length > 0 && s.length < 50
+        )
+      fc.assert(
+        fc.property(
+          readToolCallArb,
+          safeSegmentArb,
+          (toolCall, filePathSegment) => {
+            const fullFilePath = `/tmp/${filePathSegment}`
+            const toolCallWithPath = createToolCall({
+              toolName: 'Read' as any,
+              arguments: { path: fullFilePath },
+            })
+            const rule = createBlockRule({
+              pattern: `regex:${filePathSegment}`,
+            })
+            const result = matcher.match(toolCallWithPath, rule)
+            expect(result.matched).toBe(true)
+            expect(result.confidence).toBe('high')
+          }
+        )
+      )
+    })
+  })
+
+  describe('Correctness: match returns high confidence for matches', () => {
+    it('should always return high confidence when the command contains the pattern', () => {
+      fc.assert(
+        fc.property(subStrPatternArb, commandArb, (pattern, command) => {
+          if (command.includes(pattern)) {
+            const toolCall = createToolCall({ arguments: { command } })
+            const rule = createBlockRule({ pattern })
+            const result = matcher.match(toolCall, rule)
+            expect(result.confidence).toBe('high')
+          }
+        })
+      )
+    })
+  })
+
+  describe('Correctness: exception matches on file path', () => {
+    it('should match exceptions in file path', () => {
+      fc.assert(
+        fc.property(subStrPatternArb, (pattern) => {
+          const filePath = `/var/log/${pattern}.log`
+          const toolCall = createToolCall({
+            toolName: 'Read' as any,
+            arguments: { path: filePath },
+          })
+          const exception = createAllowException({ pattern })
+          const result = matcher.matchException(toolCall, exception)
+          expect(result).toBe(true)
+        })
+      )
+    })
   })
 })

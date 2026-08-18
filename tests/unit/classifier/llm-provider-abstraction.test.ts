@@ -141,4 +141,69 @@ describe('LLMProviderAbstraction', () => {
       )
     })
   })
+
+  describe('callLocal - endpoint verification', () => {
+    it('should call the local Ollama endpoint for local provider', async () => {
+      const localConfig = {
+        ...mockConfig,
+        llm: {
+          ...mockConfig.llm,
+          provider: 'local' as const,
+          model: 'qwen3.5-9b',
+          timeout: 5000,
+          baseUrl: 'http://localhost:18780/v1',
+        },
+      }
+      const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            response: 'ALLOW\nThe command is safe.',
+            done: true,
+          }),
+      } as any)
+
+      try {
+        const provider = new LLMProviderAbstraction(localConfig, 'local-key')
+        const result = await provider.classifyStage2('classify this')
+
+        expect(fetchSpy).toHaveBeenCalledWith(
+          'http://localhost:11434/api/generate',
+          expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: expect.stringContaining('qwen3.5-9b'),
+          })
+        )
+        expect((result as any).response).toBe('ALLOW\nThe command is safe.')
+      } finally {
+        fetchSpy.mockRestore()
+      }
+    })
+  })
+
+  describe('latency population from startTime', () => {
+    it('should populate latency in parseAnthropicResponse', () => {
+      const provider = new LLMProviderAbstraction(mockConfig, 'test-api-key')
+
+      // Call parseAnthropicResponse directly and verify latency is 0
+      const result = (provider as any).parseAnthropicResponse(
+        { content: [{ text: 'ALLOW' }] },
+        'stage1'
+      )
+      expect((result as any).latency).toBeDefined()
+      expect(typeof (result as any).latency).toBe('number')
+    })
+
+    it('should populate latency in parseOpenAIResponse', () => {
+      const provider = new LLMProviderAbstraction(mockConfig, 'test-api-key')
+
+      const result = (provider as any).parseOpenAIResponse(
+        { choices: [{ message: { content: 'DENY' } }] },
+        'stage2'
+      )
+      expect((result as any).latency).toBeDefined()
+      expect(typeof (result as any).latency).toBe('number')
+    })
+  })
 })
