@@ -18,9 +18,9 @@ export class FallbackExecutor {
     this.timeoutManager = timeoutManager || new TimeoutManager()
   }
 
-  executeOnTimeout(error: Error): ClassificationResult {
+  executeOnTimeout(error: unknown): ClassificationResult {
     const fallback = this.config.fallback.onTimeout
-    const message = `LLM API timeout: ${error.message}`
+    const message = `LLM API timeout: ${error instanceof Error ? error.message : String(error)}`
 
     switch (fallback) {
       case 'allow':
@@ -43,9 +43,9 @@ export class FallbackExecutor {
     }
   }
 
-  executeOnError(error: Error): ClassificationResult {
+  executeOnError(error: unknown): ClassificationResult {
     const fallback = this.config.fallback.onError
-    const message = `LLM API error: ${error.message}`
+    const message = `LLM API error: ${error instanceof Error ? error.message : String(error)}`
 
     switch (fallback) {
       case 'allow':
@@ -68,8 +68,8 @@ export class FallbackExecutor {
     }
   }
 
-  executeOnMalformedResponse(error: Error): ClassificationResult {
-    const message = `Malformed LLM response: ${error.message}`
+  executeOnMalformedResponse(error: unknown): ClassificationResult {
+    const message = `Malformed LLM response: ${error instanceof Error ? error.message : String(error)}`
     return createDenyResult(
       `${message} - action denied (safe failure for malformed response)`,
       undefined,

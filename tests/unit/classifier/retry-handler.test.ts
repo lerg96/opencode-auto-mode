@@ -1,4 +1,5 @@
 import { RetryHandler } from '../../../src/classifier/RetryHandler'
+import { LlmHttpError, LlmParseError } from '../../../src/LlmClient'
 
 describe('RetryHandler', () => {
   describe('constructor defaults', () => {
@@ -252,6 +253,66 @@ describe('RetryHandler', () => {
           throw testError
         })
       ).rejects.toBe(testError)
+    })
+  })
+
+  describe('typed HTTP/parse error integration', () => {
+    it('should retry LlmHttpError with retryable status 429', async () => {
+      const rh = new RetryHandler(3, 0)
+      let attempts = 0
+
+      await expect(
+        rh.executeWithRetry(async () => {
+          attempts++
+          if (attempts < 2) {
+            throw new LlmHttpError(429, 'Too Many Requests')
+          }
+          return 'success'
+        })
+      ).resolves.toBe('success')
+      expect(attempts).toBe(2)
+    })
+
+    it('should retry LlmHttpError with retryable status 503', async () => {
+      const rh = new RetryHandler(3, 0)
+      let attempts = 0
+
+      await expect(
+        rh.executeWithRetry(async () => {
+          attempts++
+          if (attempts < 2) {
+            throw new LlmHttpError(503, 'Service Unavailable')
+          }
+          return 'success'
+        })
+      ).resolves.toBe('success')
+      expect(attempts).toBe(2)
+    })
+
+    it('should NOT retry LlmHttpError with non-retryable status 400', async () => {
+      const rh = new RetryHandler(2, 0)
+      let attempts = 0
+
+      await expect(
+        rh.executeWithRetry(async () => {
+          attempts++
+          throw new LlmHttpError(400, 'Bad Request')
+        })
+      ).rejects.toThrow(LlmHttpError)
+      expect(attempts).toBe(1)
+    })
+
+    it('should NOT retry LlmParseError', async () => {
+      const rh = new RetryHandler(3, 0)
+      let attempts = 0
+
+      await expect(
+        rh.executeWithRetry(async () => {
+          attempts++
+          throw new LlmParseError('Unexpected token')
+        })
+      ).rejects.toThrow(LlmParseError)
+      expect(attempts).toBe(1)
     })
   })
 })

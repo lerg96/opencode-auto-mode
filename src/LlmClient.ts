@@ -1,6 +1,23 @@
 const DEFAULT_BASE_URL = 'http://localhost:18780/v1'
 const DEFAULT_MAX_TOKENS = 200
 
+export class LlmHttpError extends Error {
+  status: number
+
+  constructor(status: number, statusText: string) {
+    super(`LLM API error: ${status} ${statusText}`)
+    this.name = 'LlmHttpError'
+    this.status = status
+  }
+}
+
+export class LlmParseError extends SyntaxError {
+  constructor(rawBody: string) {
+    super(`LLM response parse error: ${rawBody}`)
+    this.name = 'LlmParseError'
+  }
+}
+
 interface LlmApiClientRequest {
   model: string
   messages: Array<{ role: string; content: string }>
@@ -153,18 +170,39 @@ export async function callLlmWithFallback(
       usedFallback = true
       fallbackError = `http:${status}`
       if (!isSuccessResponse(res)) {
-        throw new Error(
-          `LLM API error: ${status} ${res.statusText} (and fallback also returned ${res.status})`
+        throw new LlmHttpError(
+          res.status,
+          `and fallback also returned ${res.status}`
         )
       }
     } else {
-      throw new Error(`LLM API error: ${status} ${res.statusText}`)
+      throw new LlmHttpError(status, res.statusText)
     }
   }
 
-  const data: LlmApiResponse = await res.json()
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch (raw: unknown) {
+    const rawText =
+      raw instanceof Error ? raw.message : String(raw ?? 'unknown')
+    throw new LlmParseError(rawText)
+  }
+
+  if (data === null || data === undefined || typeof data !== 'object') {
+    return {
+      content: '',
+      usedFallback,
+      fallbackError,
+    }
+  }
+
+  const parsed = data as Record<string, unknown>
+  const rawContent = (
+    parsed?.choices?.[0] as Record<string, unknown> | undefined
+  )?.message?.content
   return {
-    content: data?.choices?.[0]?.message?.content || '',
+    content: typeof rawContent === 'string' ? rawContent : String(rawContent ?? ''),
     usedFallback,
     fallbackError,
   }
