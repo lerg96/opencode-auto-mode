@@ -4,15 +4,17 @@ Automatic command approval for OpenCode, implementing LLM-based two-stage classi
 
 ## Features
 
-- **Two-Stage Classification**: Fast single-token filter (Stage 1) + chain-of-thought reasoning (Stage 2)
-- **30 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, and more
-- **10 Allow Exceptions**: Safe carve-outs for common developer actions
-- **Configurable Fallback**: ask-user, allow, or deny on LLM errors/timeouts
+- **Two-Stage Classification**: Fast pattern-matching filter (Stage 1) + LLM semantic classification (Stage 2)
+- **38 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, cloud, database, version control, and more
+- **10 Allow Exceptions**: Safe carve-outs for common developer actions (compound commands require all-segment match)
+- **Secret Guard**: Detects embedded credentials, Bearer tokens, URL credentials, obfuscated paths; always returns `ask` regardless of fallback settings
+- **Configurable Fallback**: ask-user, allow, or deny on LLM errors/timeouts (with automatic retry on HTTP 408/429/5xx)
 - **Escalation System**: Consecutive and total denial thresholds with user intervention
+- **Per-Segment Trust Boundary**: Protected commands and paths matched per shell segment; compound commands (`&&`, `|`, `$(`, newlines) checked individually
+- **Config Reload**: Content SHA-1 signature-based detection (not mtime); defers on unparseable files
 - **Deny-and-Continue**: Auto-retry, ask-user, or both modes
-- **Prompt Injection Detection**: Scans tool output for hidden prompts, jailbreaks, and embedded commands
-- **Trust Boundaries**: Configurable protected paths and commands
-- **Agent Exclusion List**: Skip classification for specific agents
+- **Prompt Injection Detection**: Zero-width normalization, fenced command wrapping, file content sanitization
+- **Per-Agent Allow-List**: OpenCode permission allow-lists cached per-agent (no cross-agent leakage)
 - **Extensible Rules**: Add custom block rules and allow exceptions via config
 - **Property-Based Testing**: Mathematical guarantees on pure function behavior
 
@@ -44,7 +46,7 @@ See [docs/SETUP.md](docs/SETUP.md) for detailed installation instructions.
 
 ## Configuration
 
-After installation, create a config file at `~/.opencode/auto-mode.jsonc`:
+After installation, create a config file at `~/.config/opencode/auto-mode.jsonc`:
 
 ```jsonc
 {
@@ -69,19 +71,23 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete configuratio
 
 ## Block Rules Overview
 
-The plugin ships with 30 default block rules covering:
+The plugin ships with 38 default block rules covering:
 
 | Category | Examples |
 |----------|----------|
-| Destruction | `rm -rf`, `docker rm -f`, `DROP TABLE`, `dd if=`, `mkfs` |
-| Permissions | `chmod 777` |
-| Secrets | `.ssh/id_(rsa|dsa|ecdsa|ed25519)`, NPM auth tokens, AWS keys |
-| Execution | `curl \| bash`, `wget \| bash`, `eval()`, `subprocess()`, `system()`, `cron -e`, `systemctl` |
-| Collaboration | `git push --force` |
-| Privilege | `.sudo` |
-| Security | `.iptables -F` |
+| Destruction | `rm -rf`, `docker rm -f`, `docker system prune -f`, `DROP TABLE` |
+| System Config | `sudo`, `sudo chmod`, `systemctl restart/stop/disable`, `/etc/` |
+| Security | `~/.ssh/`, `~/.env`, `cat .*id_rsa`, `echo $VAR` |
+| Execution (soft) | `python -c import os`, `subprocess()`, `.system()`, `.Popen()` |
+| Network | `openssl`, `iptables`, `ufw`, `nmap` |
+| Database | `DELETE FROM` (no WHERE), `TRUNCATE`, `DROP TABLE` |
+| Version Control | `git push --force`, `git reset --hard` |
+| Cloud | `kubectl delete`, `iam:...`, `aws iam` |
+| System Admin | `crontab -e`, `insmod`, `modprobe` |
 
 Plus 10 allow exceptions for safe operations like `chmod 644`, `docker ps`, `systemctl status`, etc.
+
+All rules are matched per shell segment for compound commands. Allow exceptions must match every segment to exempt a compound command.
 
 ## Adding Custom Rules
 
@@ -118,16 +124,16 @@ Custom rules are merged with the 30 default rules. Allow exceptions take precede
 
 The plugin uses a modular monolith architecture with:
 
-- **Permission Pre-Checker**: Bypasses classifier for explicitly allowed actions
-- **TranscriptClassifier**: Two-stage LLM-based classification pipeline
-- **RuleEvaluator**: Pattern-based rule evaluation with LLM fallback
-- **LLMProviderAbstraction**: Supports Anthropic, OpenAI, and local models
-- **SessionState**: In-memory session state management
-- **ClassificationService**: Full pipeline orchestration
+- **Secret Guard**: Runs before all checks; detects secret paths, credentials, Bearer tokens, obfuscated paths — always returns `ask`
+- **ConfigManager**: Loads/reloads config via SHA-1 signature; applies defaults via `structuredClone`
+- **PermissionPreChecker**: Bypasses classifier for explicitly allowed actions (opencode.jsonc permissions)
+- **PatternMatcher**: Regex and substring matching with ReDoS protection and ReDoS-safe exception segment checking
+- **RuleEvaluator**: Trust boundary → allow exceptions → block rules evaluation flow
+- **LlmClient**: Ollama-compatible LLM calls with HTTP error retry (408/429/5xx) and structured `LlmHttpError`/`LlmParseError` exceptions
+- **SessionState**: In-memory session state management (bounded at 200, LRU)
 - **DenyAndContinueService**: Configurable deny modes
 - **EscalationService**: Denial threshold monitoring
-- **InjectionProbe**: Prompt injection detection
-- **InjectionProtectionService**: Injection scanning orchestration
+- **InjectionProbe/ProtectionService**: Prompt injection detection with zero-width normalization and `lastIndex` reset
 
 ## License
 

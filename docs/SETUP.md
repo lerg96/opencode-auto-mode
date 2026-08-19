@@ -4,19 +4,19 @@
 
 - Node.js 18+ (for building and development)
 - OpenCode installed and configured
-- Access to an LLM API (Anthropic, OpenAI, or local model)
+- Access to an LLM API (Anthropic, OpenAI, or local model — default is Ollama at `http://localhost:18780/v1`)
 
 ## Installation Methods
 
 ### Method 1: npm Install (Recommended)
 
 ```bash
-npm install opencode-auto-mode
+npm install @lerg96/opencode-auto-mode
 ```
 
-After installation, configure the plugin by creating `~/.opencode/auto-mode.jsonc` (see [Configuration Guide](CONFIGURATION.md)).
+After installation, configure the plugin by creating `~/.config/opencode/auto-mode.jsonc` (see [Configuration Guide](CONFIGURATION.md)).
 
-### Method 2: Local Development Install
+### Method 2: Local development install
 
 1. **Clone the repository**:
 
@@ -37,6 +37,8 @@ npm install
 npm run build
 ```
 
+The build runs `tsup` (ESM + CJS), copies bundled rules via `scripts/copy-rules.mjs`, and generates TypeScript declarations.
+
 4. **Link globally** (so OpenCode can load the plugin):
 
 ```bash
@@ -49,7 +51,7 @@ npm link
 npm link opencode-auto-mode
 ```
 
-### Method 3: Local git clone + Direct Path
+### Method 3: Local git clone + direct path
 
 ```bash
 git clone <repository-url>
@@ -66,20 +68,20 @@ Reference the plugin path in your OpenCode configuration.
 
 ```bash
 # On Windows (PowerShell):
-$env:USERPROFILE | Join-Path ".opencode" | Out-String
+$env:USERPROFILE | Join-Path ".config" | Join-Path "opencode" | Out-String
 
 # On macOS/Linux:
-echo ~/.opencode
+echo ~/.config/opencode
 ```
 
-2. Create `~/.opencode/auto-mode.jsonc` with your configuration:
+2. Create `~/.config/opencode/auto-mode.jsonc` with your configuration:
 
 ```jsonc
 {
   "llm": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514",
-    "timeout": 5000
+    "provider": "openai",
+    "model": "qwen/qwen3.5-9b",
+    "timeout": 8000
   },
   "denyMode": "auto-retry",
   "escalation": {
@@ -93,6 +95,8 @@ echo ~/.opencode
 }
 ```
 
+> The default LLM endpoint is `http://localhost:18780/v1` (Ollama-compatible). The fallback model `mistral-large-latest` is used automatically on primary model failure.
+
 3. See [Configuration Guide](CONFIGURATION.md) for all available options.
 
 ## Verification
@@ -103,7 +107,7 @@ echo ~/.opencode
 npm run build
 ```
 
-Verify that the `dist/` directory is created with compiled JavaScript files.
+Verify that the `dist/` directory is created with compiled JavaScript files, and `dist/config/default-block-rules.jsonc` exists.
 
 2. **Run tests**:
 
@@ -111,21 +115,22 @@ Verify that the `dist/` directory is created with compiled JavaScript files.
 npm test
 ```
 
-All tests should pass (265+ unit tests).
+All tests should pass (501 unit + integration + property-based tests).
 
 3. **Verify plugin loads**:
 
 Start OpenCode and check for initialization messages:
 
 ```
-[ConfigManager] Configuration loaded successfully
+[AutoMode][v1.0.5] PLUGIN INITIALIZED
+[AutoMode][v1.0.5] Config loaded: rules=38 exceptions=10 llm=none
 ```
 
 ## Troubleshooting
 
 ### "Config file not found" warning
 
-This is normal if you haven't created `~/.opencode/auto-mode.jsonc` yet. The plugin uses default configuration until a config file is provided.
+This is normal if you haven't created `~/.config/opencode/auto-mode.jsonc` yet. The plugin uses default configuration until a config file is provided.
 
 ### TypeScript compilation errors
 
@@ -152,14 +157,14 @@ npm test
 
 ### Config not being read
 
-1. Verify the config file path: `~/.opencode/auto-mode.jsonc`
+1. Verify the config file path: `~/.config/opencode/auto-mode.jsonc`
 2. Ensure the file uses `.jsonc` extension (supports comments)
 3. Check that the JSON is valid (remove any trailing commas or invalid syntax)
 4. Check console output for parse error messages
 
 ### Default block rules not loading
 
-The default block rules are bundled with the package. If they're not loading:
+The default block rules are defined in `src/config/default-block-rules.jsonc` and bundled to `dist/config/` at build time via `scripts/copy-rules.mjs`. If they're not loading:
 
 1. Check that `dist/config/default-block-rules.jsonc` exists after build
 2. Verify the rules file is valid JSONC (no trailing commas, proper comments)
