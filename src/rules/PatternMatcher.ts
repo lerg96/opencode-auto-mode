@@ -88,6 +88,8 @@ export class PatternMatcher {
       if (coveredSegment) {
         return true
       }
+      // If no segment matched, don't fall through to full-command matching
+      // for compound commands — it creates an allow-exception bypass
     }
 
     if (filePath) {

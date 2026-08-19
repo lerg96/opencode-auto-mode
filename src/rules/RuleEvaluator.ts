@@ -45,7 +45,7 @@ export class RuleEvaluator {
       return trustResult
     }
 
-    // Step 1: Check allow exceptions first (highest precedence)
+    // Step 1: Check allow exceptions (highest precedence)
     for (const exception of allowExceptions) {
       if (this.patternMatcher.matchException(toolCall, exception)) {
         return {

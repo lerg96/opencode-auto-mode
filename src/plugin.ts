@@ -280,11 +280,12 @@ const SECRET_FILE_PATTERN =
   /(\.env(\.\w+)?|\bcredentials\b|\.ssh|id_(rsa|ed25519|dsa|ecdsa)|\.netrc|\.npmrc|\.aws|\.kube|\.pypirc|\.gitconfig)/i
 const SECRET_KEYWORD_PATTERN =
   /(api[_-]?keys?|\bsecrets?\b|\btokens?\b|\bpasswords?\b)/i
+const SECRET_CMD_PATTERN = /getent\s+(passwd|shadow|group)/i
 
 const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
 
 function isSimpleCommand(command: string): boolean {
-  return !SHELL_SEPARATOR_RE.test(command)
+  return !SHELL_SEPARATOR_RE.test(command) && !/\beval\b/.test(command)
 }
 
 function deobfuscateCommand(command: string): string {
@@ -296,10 +297,15 @@ function matchesSecretPattern(re: RegExp, text: string): boolean {
   return re.test(text)
 }
 
+function stripVariableExpansion(text: string): string {
+  return text.replace(/\$\{[^}]*\}/g, '').replace(/\$[A-Za-z_][\w]*/g, '')
+}
+
 const SECRET_ASSIGNMENT_RE =
   /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
 const SECRET_FLAG_RE =
   /(--[\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
+const SECRET_VAR_REF_RE = /(\$|\$\{)[A-Za-z_]*(?:api[_-]?key|secret|token|password|passwd|credential|auth|client[_-]?secret|access[_-]?key)[\w}]*\b/gi
 const BEARER_RE = /(Authorization\s*:\s*Bearer\s+)[^\s"';&|`$]+/gi
 const URL_CRED_RE = /(\bhttps?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi
 
@@ -317,7 +323,13 @@ function logCmd(text: string, length = 80): string {
 }
 
 function isSecretSensitive(command: string): boolean {
-  const forms = [command, deobfuscateCommand(command)]
+  const deobf = deobfuscateCommand(command)
+  const stripped = stripVariableExpansion(deobf)
+  const rawNoVar = stripVariableExpansion(command)
+  const forms = [command, deobf, stripped, rawNoVar].filter(
+    (v, i, a) => a.indexOf(v) === i
+  )
+  const isVarMatch = forms.some((c) => matchesSecretPattern(SECRET_VAR_REF_RE, c))
   return forms.some(
     (c) =>
       matchesSecretPattern(SECRET_FILE_PATTERN, c) ||
@@ -325,8 +337,9 @@ function isSecretSensitive(command: string): boolean {
       matchesSecretPattern(SECRET_ASSIGNMENT_RE, c) ||
       matchesSecretPattern(SECRET_FLAG_RE, c) ||
       matchesSecretPattern(BEARER_RE, c) ||
-      matchesSecretPattern(URL_CRED_RE, c)
-  )
+      matchesSecretPattern(URL_CRED_RE, c) ||
+      matchesSecretPattern(SECRET_CMD_PATTERN, c)
+  ) || isVarMatch
 }
 
 function allowListed(command: string, sessionID: string): boolean {
