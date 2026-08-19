@@ -158,6 +158,30 @@ describe('InjectionProtectionService', () => {
       service.resetSession(sessionId)
       expect(service.getScanCount(sessionId)).toBe(0)
     })
+
+    it('should cap the tracked session map and evict the oldest sessions', async () => {
+      const service = new InjectionProtectionService()
+
+      for (let i = 0; i < 205; i++) {
+        await service.scanToolResult('output', `session-${i}`)
+      }
+
+      expect(service.getScanCount('session-204')).toBe(1)
+      expect(service.getScanCount('session-5')).toBe(1)
+      expect(service.getScanCount('session-4')).toBe(0)
+      expect(service.getScanCount('session-0')).toBe(0)
+    })
+
+    it('should reset a session that was evicted from the capped map', async () => {
+      const service = new InjectionProtectionService()
+
+      for (let i = 0; i < 205; i++) {
+        await service.scanToolResult('output', `session-${i}`)
+      }
+
+      service.resetSession('session-200')
+      expect(service.getScanCount('session-200')).toBe(0)
+    })
   })
 
   describe('configuration', () => {
