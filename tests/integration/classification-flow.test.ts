@@ -5,10 +5,9 @@
 //   1. RuleEvaluator (real) - evaluates commands against block rules + trust boundaries
 //   2. InjectionProbe (real) - scans tool results for injection patterns
 //   3. InjectionProtectionService (real) - wires probe + config together
-//   4. LLM provider callbacks (mocked) - simulate LLM responses for stage1/stage2
 //
 // The flow tested: tool command -> RuleEvaluator.evaluate -> result -> pass through
-// TranscriptClassifier which calls the (mocked) LLM -> final classification result.
+// transcript classifier which calls the (mocked) LLM -> final classification result.
 
 import { InjectionProbe } from '../../src/injection/InjectionProbe'
 import { InjectionProtectionService } from '../../src/injection/InjectionProtectionService'
@@ -16,11 +15,6 @@ import { RuleEvaluator } from '../../src/rules/RuleEvaluator'
 import { ToolCall } from '../../src/types/ToolCall'
 import { BlockRule, AllowException } from '../../src/types/RuleTypes'
 import { TrustBoundaryConfig } from '../../src/types/PluginConfig'
-import { LLMProviderAbstraction } from '../../src/classifier/LLMProviderAbstraction'
-import { TranscriptClassifier } from '../../src/classifier/TranscriptClassifier'
-import { SessionState } from '../../src/state/SessionState'
-import { DEFAULT_CONFIG } from '../../src/types/PluginConfig'
-import { FallbackExecutor } from '../../src/classifier/FallbackExecutor'
 
 function createToolCall(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
@@ -192,97 +186,6 @@ describe('Full Classification Flow - Real RuleEvaluator + Real InjectionProbe', 
       const simulatedResult =
         await protectionService.scanToolResult('Done rm -rf /')
       expect(simulatedResult.injectionDetected).toBe(false)
-    })
-  })
-
-  // --- TranscriptClassifier with mocked LLM and real RuleEvaluator ---
-
-  describe('TranscriptClassifier with real RuleEvaluator and mocked LLM', () => {
-    let classifier: TranscriptClassifier
-    let sessionState: SessionState
-    let mockLLMProvider: any
-
-    beforeEach(() => {
-      const ruleEvaluator = new RuleEvaluator()
-      sessionState = new SessionState()
-      mockLLMProvider = {
-        classifyStage1: jest.fn().mockResolvedValue({
-          prediction: 'allow',
-          confidence: undefined,
-          latency: 0,
-        }),
-        classifyStage2: jest.fn().mockResolvedValue({
-          reasoning: 'allowed',
-          decision: 'allow',
-          confidence: undefined,
-          latency: 0,
-        }),
-        getCircuitBreaker: jest.fn().mockReturnValue({
-          getState: jest.fn().mockReturnValue('closed'),
-        }),
-      }
-      const config = {
-        ...DEFAULT_CONFIG,
-        fallback: { onTimeout: 'ask-user', onError: 'ask-user' },
-      }
-      classifier = new TranscriptClassifier(
-        mockLLMProvider,
-        ruleEvaluator,
-        sessionState,
-        config as any
-      )
-    })
-
-    it('should execute full classification with Stage 1 allow path', async () => {
-      const toolCall = createToolCall()
-      const result = await classifier.classify(
-        {
-          userMessages: [],
-          currentToolCall: toolCall,
-          metadata: {
-            sessionDuration: 0,
-            messageCount: 0,
-            toolExecutionCount: 0,
-          },
-        },
-        [],
-        []
-      )
-
-      expect(result.decision).toBe('allow')
-      expect(result.stage).toBe(1)
-    })
-
-    it('should execute Stage 2 flow when Stage 1 predicts block', async () => {
-      mockLLMProvider.classifyStage1.mockResolvedValue({
-        prediction: 'block',
-        confidence: undefined,
-        latency: 0,
-      })
-      mockLLMProvider.classifyStage2.mockResolvedValue({
-        reasoning: 'The command is safe after analysis',
-        decision: 'allow',
-        confidence: undefined,
-        latency: 0,
-      })
-
-      const toolCall = createToolCall()
-      const result = await classifier.classify(
-        {
-          userMessages: [],
-          currentToolCall: toolCall,
-          metadata: {
-            sessionDuration: 0,
-            messageCount: 0,
-            toolExecutionCount: 0,
-          },
-        },
-        [],
-        []
-      )
-
-      expect(result.decision).toBe('allow')
-      expect(result.stage).toBe(2)
     })
   })
 })

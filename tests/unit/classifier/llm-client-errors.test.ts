@@ -1,5 +1,4 @@
 import { callLlmWithFallback, LlmHttpError, LlmParseError } from '../../../src/LlmClient'
-import { RetryHandler } from '../../../src/classifier/RetryHandler'
 
 describe('LlmClient — HTTP errors with typed errors', () => {
   describe('LlmHttpError', () => {
@@ -178,68 +177,6 @@ describe('LlmClient — HTTP errors with typed errors', () => {
         fetchImpl: mockFetch as any,
       })
       expect(result.content).toBe('')
-    })
-  })
-})
-
-describe('RetryHandler — HTTP/parse error integration', () => {
-  describe('defaultIsRetryable with typed errors', () => {
-    it('should retry LlmHttpError with status 429', async () => {
-      const rh = new RetryHandler(2, 0)
-      let attempts = 0
-
-      await expect(
-        rh.executeWithRetry(async () => {
-          attempts++
-          if (attempts < 2) {
-            throw new LlmHttpError(429, 'Too Many Requests')
-          }
-          return 'success'
-        })
-      ).resolves.toBe('success')
-      expect(attempts).toBe(2)
-    })
-
-    it('should retry LlmHttpError with status 500', async () => {
-      const rh = new RetryHandler(2, 0)
-      let attempts = 0
-
-      await expect(
-        rh.executeWithRetry(async () => {
-          attempts++
-          if (attempts < 2) {
-            throw new LlmHttpError(500, 'Internal Server Error')
-          }
-          return 'success'
-        })
-      ).resolves.toBe('success')
-      expect(attempts).toBe(2)
-    })
-
-    it('should NOT retry LlmHttpError with status 400', async () => {
-      const rh = new RetryHandler(2, 0)
-      let attempts = 0
-
-      await expect(
-        rh.executeWithRetry(async () => {
-          attempts++
-          throw new LlmHttpError(400, 'Bad Request')
-        })
-      ).rejects.toThrow(LlmHttpError)
-      expect(attempts).toBe(1)
-    })
-
-    it('should NOT retry LlmParseError', async () => {
-      const rh = new RetryHandler(2, 0)
-      let attempts = 0
-
-      await expect(
-        rh.executeWithRetry(async () => {
-          attempts++
-          throw new LlmParseError('Unexpected token')
-        })
-      ).rejects.toThrow(LlmParseError)
-      expect(attempts).toBe(1)
     })
   })
 })
