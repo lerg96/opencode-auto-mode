@@ -1,13 +1,13 @@
-// Full Classification Flow - Integration Tests
+// Classification Flow - Integration Tests
 //
-// This test exercises the real RuleEvaluator + real InjectionProbe + a mocked LLM provider
-// to verify end-to-end classification behavior. Components:
+// This test exercises the real RuleEvaluator and the real injection-protection
+// components (InjectionProbe + InjectionProtectionService). Components:
 //   1. RuleEvaluator (real) - evaluates commands against block rules + trust boundaries
 //   2. InjectionProbe (real) - scans tool results for injection patterns
 //   3. InjectionProtectionService (real) - wires probe + config together
 //
-// The flow tested: tool command -> RuleEvaluator.evaluate -> result -> pass through
-// transcript classifier which calls the (mocked) LLM -> final classification result.
+// Note: this file does NOT exercise the LLM/transcript-classifier path; it only
+// covers rule evaluation, trust boundaries, and injection scanning in isolation.
 
 import { InjectionProbe } from '../../src/injection/InjectionProbe'
 import { InjectionProtectionService } from '../../src/injection/InjectionProtectionService'
@@ -55,7 +55,7 @@ function createAllowException(
   }
 }
 
-describe('Full Classification Flow - Real RuleEvaluator + Real InjectionProbe', () => {
+describe('Integration: RuleEvaluator + InjectionProbe/InjectionProtectionService', () => {
   // --- RuleEvaluator end-to-end with trust boundary ---
 
   describe('RuleEvaluator integrates with trust boundaries', () => {

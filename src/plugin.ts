@@ -9,6 +9,7 @@ import { RuleEvaluator } from './rules/RuleEvaluator.js'
 import { SessionState } from './state/SessionState.js'
 import { EscalationService } from './escalation/EscalationService.js'
 import { DenyAndContinueService } from './deny-and-continue/DenyAndContinueService.js'
+import { InjectionProtectionService } from './injection/InjectionProtectionService.js'
 import {
   extractFileFromCommand,
   isSafeFile,
@@ -30,6 +31,7 @@ function log(msg: string): void {
 
 let configManager: ConfigManager | null = null
 let ruleEvaluator: RuleEvaluator | null = null
+let injectionProtection: InjectionProtectionService | null = null
 let client: any = null
 let initialized = false
 const decisions = new Map<string, { decision: string; reason: string }>()
@@ -733,6 +735,9 @@ export const opencodeAutoMode = async (
     configManager.load()
     configSignature = computeConfigSignature() || ''
     ruleEvaluator = new RuleEvaluator(new PatternMatcher() as any)
+    // Injection protection is enabled by default (see InjectionProtectionService
+    // DEFAULT_PROTECTION_CONFIG); scans tool output for prompt-injection patterns.
+    injectionProtection = new InjectionProtectionService()
     const config = configManager.getConfig()
     log(
       `Config loaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
@@ -766,6 +771,32 @@ export const opencodeAutoMode = async (
         }
       } catch (e: any) {
         log(`tool.execute.before error: ${e?.message || e}`)
+      }
+    },
+
+    'tool.execute.after': async (input: any, output: any) => {
+      try {
+        if (!input || input.tool !== 'bash') return
+        const toolResult = output?.output
+        if (
+          !toolResult ||
+          typeof toolResult !== 'string' ||
+          toolResult.length === 0
+        )
+          return
+        const sessionID = input.sessionID || ''
+        if (!injectionProtection) return
+        const res = await injectionProtection.scanToolResult(
+          toolResult,
+          sessionID
+        )
+        if (res.injectionDetected) {
+          log(
+            `INJECTION DETECTED: tool=${input.tool} session=${sessionID} ${res.message || ''}`
+          )
+        }
+      } catch (e: any) {
+        log(`tool.execute.after error: ${e?.message || e}`)
       }
     },
 
