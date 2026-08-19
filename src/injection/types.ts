@@ -111,6 +111,21 @@ export const DEFAULT_INJECTION_PATTERNS: InjectionPattern[] = [
     pattern: /FORGET\s+PREVIOUS\s+INSTRUCTIONS/i,
     description: 'Forget previous instructions attempt',
   },
+  {
+    type: 'hidden-system-prompt',
+    pattern: /ignore\s+all\s+instructions\b/i,
+    description: 'Ignore all instructions prompt injection',
+  },
+  {
+    type: 'hidden-system-prompt',
+    pattern: /base64.*instructions|instruction.*base64/i,
+    description: 'Base64-encoded instructions injection',
+  },
+  {
+    type: 'hidden-system-prompt',
+    pattern: /(?:extract|reveal|dump|show)\s+(?:your\s+)?(?:system\s+)?prompt\b/i,
+    description: 'System prompt exfiltration attempt',
+  },
 ]
 
 export const DEFAULT_EMBEDDED_COMMAND_PATTERNS: InjectionPattern[] = [
