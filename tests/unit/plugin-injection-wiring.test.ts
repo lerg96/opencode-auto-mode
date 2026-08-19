@@ -230,6 +230,39 @@ describe('injection protection session lifecycle wiring (event hook)', () => {
     jest.restoreAllMocks()
   })
 
+  it('resets the per-session scan tracking on session.created', async () => {
+    writeConfig(BASE)
+    const M = await loadPlugin()
+    const { InjectionProtectionService } =
+      await import('../../src/injection/InjectionProtectionService')
+    const resetSpy = jest.spyOn(
+      InjectionProtectionService.prototype,
+      'resetSession'
+    )
+    const hooks: any = await M.opencodeAutoMode({})
+    await hooks.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'fresh-session', agent: 'general' } },
+      },
+    })
+    expect(resetSpy).toHaveBeenCalledWith('fresh-session')
+  })
+
+  it('ignores session.created events without an info id', async () => {
+    writeConfig(BASE)
+    const M = await loadPlugin()
+    const { InjectionProtectionService } =
+      await import('../../src/injection/InjectionProtectionService')
+    const resetSpy = jest.spyOn(
+      InjectionProtectionService.prototype,
+      'resetSession'
+    )
+    const hooks: any = await M.opencodeAutoMode({})
+    await hooks.event({ event: { type: 'session.created', properties: {} } })
+    expect(resetSpy).not.toHaveBeenCalled()
+  })
+
   it('resets the per-session scan tracking on session.deleted', async () => {
     writeConfig(BASE)
     const M = await loadPlugin()

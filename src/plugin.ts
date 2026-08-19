@@ -816,7 +816,10 @@ export const opencodeAutoMode = async (
           if (info?.id && info?.agent) {
             touchMap(agentBySession, info.id, info.agent, MAX_AGENT_TRACKING)
           }
-          if (info?.id) sessionStates.delete(info.id)
+          if (info?.id) {
+            sessionStates.delete(info.id)
+            injectionProtection?.resetSession(info.id)
+          }
           log(`session.created: agent=${info?.agent} session=${info?.id}`)
         }
 
