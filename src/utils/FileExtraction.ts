@@ -302,7 +302,18 @@ export function readSafely(
     const stat = fs.fstatSync(fd)
     if (!stat.isFile()) return null
     if (stat.size === 0) return null
-    if (!isSafeFile(resolved, trustBoundary)) return null
+    const currentResolved = fs.realpathSync(filepath)
+    if (currentResolved !== resolved) return null
+    const currentStat = fs.statSync(currentResolved)
+    if (currentStat.size !== stat.size) return null
+    if (
+      currentStat.ino !== 0 &&
+      stat.ino !== 0 &&
+      currentStat.ino !== stat.ino
+    ) {
+      return null
+    }
+    if (!isSafeFile(currentResolved, trustBoundary)) return null
     const readLength = Math.min(stat.size, SAFE_FILE_SIZE_BYTES)
     const buffer = Buffer.alloc(readLength)
     fs.readSync(fd, buffer, 0, readLength, 0)
@@ -367,9 +378,7 @@ export function isSuspiciousFileContent(content: string): boolean {
 }
 
 function sanitizeForPrompt(text: string): string {
-  return text
-    .replace(/```/g, '` ` `')
-    .replace(/^-{3,}\s*$/gm, ' --- ')
+  return text.replace(/```/g, '` ` `').replace(/^-{3,}\s*$/gm, ' --- ')
 }
 
 export function buildClassifierPrompt(
