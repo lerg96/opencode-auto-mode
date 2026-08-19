@@ -8,6 +8,7 @@ import { callLlmWithFallback } from './LlmClient.js'
 import { RuleEvaluator } from './rules/RuleEvaluator.js'
 import { SessionState } from './state/SessionState.js'
 import { EscalationService } from './escalation/EscalationService.js'
+import { DenyAndContinueService } from './deny-and-continue/DenyAndContinueService.js'
 import {
   extractFileFromCommand,
   isSafeFile,
@@ -104,6 +105,33 @@ function recordApproved(sessionID: string, command = ''): void {
     },
     'Approved by auto-mode'
   )
+}
+
+function applyDenyMode(
+  command: string,
+  reason: string,
+  blockRule: string,
+  config: any,
+  sessionID: string
+): { decision: string; reason: string } {
+  const mode: string = config?.denyMode || 'auto-retry'
+  if (mode === 'ask-user') {
+    log(`DENY-MODE ask-user: "${logCmd(command)}" -> asking user`)
+    return { decision: 'ask', reason: `${reason} — user confirmation required` }
+  }
+  const service = new DenyAndContinueService(config, getSessionState(sessionID))
+  const result = service.handleDeny({
+    decision: 'deny',
+    reasoning: reason,
+    blockRule,
+    stage: 'rule-eval',
+    timestamp: new Date(),
+  })
+  log(`DENY-MODE ${mode}: "${logCmd(command)}" -> ${result.type}`)
+  if (result.type === 'ask-user') {
+    return { decision: 'ask', reason: result.message }
+  }
+  return { decision: 'deny', reason: result.message }
 }
 
 function computeFileSignature(filePath: string): string | null {
@@ -584,7 +612,7 @@ async function classifyCommand(
     const reason = `Rule ${ruleId} blocked command`
     if (severity === 'critical') {
       log(`RULES deny: "${logCmd(command)}" (${reason})`)
-      return { decision: 'deny', reason }
+      return applyDenyMode(command, reason, ruleId, config, sessionID)
     }
     if (allowListed(command, sessionID)) {
       log(`ALLOW-LIST skip: "${logCmd(command)}"`)
