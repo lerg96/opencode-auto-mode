@@ -5,7 +5,7 @@ Automatic command approval for OpenCode, implementing LLM-based two-stage classi
 ## Features
 
 - **Two-Stage Classification**: Fast pattern-matching filter (Stage 1) + LLM semantic classification (Stage 2)
-- **38 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, cloud, database, version control, and more
+- **52 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, cloud, database, version control, and more
 - **10 Allow Exceptions**: Safe carve-outs for common developer actions (compound commands require all-segment match)
 - **Secret Guard**: Detects embedded credentials, Bearer tokens, URL credentials, obfuscated paths; always returns `ask` regardless of fallback settings
 - **Configurable Fallback**: ask-user, allow, or deny on LLM errors/timeouts (with automatic retry on HTTP 408/429/5xx)
@@ -25,9 +25,7 @@ Add the plugin to your `opencode.jsonc` (or `~/.config/opencode/opencode.jsonc`)
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": [
-    "@lerg96/opencode-auto-mode"
-  ]
+  "plugins": ["@lerg96/opencode-auto-mode"],
 }
 ```
 
@@ -53,17 +51,17 @@ After installation, create a config file at `~/.config/opencode/auto-mode.jsonc`
   "llm": {
     "provider": "anthropic",
     "model": "claude-sonnet-4-20250514",
-    "timeout": 5000
+    "timeout": 5000,
   },
   "denyMode": "auto-retry",
   "escalation": {
     "consecutive": 3,
-    "total": 20
+    "total": 20,
   },
   "fallback": {
     "onTimeout": "ask-user",
-    "onError": "ask-user"
-  }
+    "onError": "ask-user",
+  },
 }
 ```
 
@@ -71,19 +69,20 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete configuratio
 
 ## Block Rules Overview
 
-The plugin ships with 38 default block rules covering:
+The plugin ships with 52 default block rules covering:
 
-| Category | Examples |
-|----------|----------|
-| Destruction | `rm -rf`, `docker rm -f`, `docker system prune -f`, `DROP TABLE` |
-| System Config | `sudo`, `sudo chmod`, `systemctl restart/stop/disable`, `/etc/` |
-| Security | `~/.ssh/`, `~/.env`, `cat .*id_rsa`, `echo $VAR` |
-| Execution (soft) | `python -c import os`, `subprocess()`, `.system()`, `.Popen()` |
-| Network | `openssl`, `iptables`, `ufw`, `nmap` |
-| Database | `DELETE FROM` (no WHERE), `TRUNCATE`, `DROP TABLE` |
-| Version Control | `git push --force`, `git reset --hard` |
-| Cloud | `kubectl delete`, `iam:...`, `aws iam` |
-| System Admin | `crontab -e`, `insmod`, `modprobe` |
+| Category         | Examples                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| Destruction      | `rm -rf`, `docker rm -f`, `docker system prune -f`, `DROP TABLE`, `dd if=`, `mkfs`, `xargs rm`     |
+| System Config    | `sudo`, `sudo chmod`, `systemctl restart/stop/disable`, `/etc/`, `chmod 777`, recursive `chmod -R` |
+| Security         | `~/.ssh/`, `~/.env`, `cat .*id_rsa`, `echo $VAR`                                                   |
+| Execution (soft) | `python -c import os`, `subprocess()`, `.system()`, `.Popen()`                                     |
+| Execution (high) | `curl \| sh`, `wget \| sh`, `docker run --privileged`                                              |
+| Network          | `openssl`, `iptables`, `ufw`, `nmap`                                                               |
+| Database         | `DELETE FROM` (no WHERE), `TRUNCATE`, `DROP TABLE`                                                 |
+| Version Control  | `git -f push`, `git push --force`, `git reset --hard`                                              |
+| Cloud            | `kubectl delete`, `iam:...`, `aws iam`                                                             |
+| System Admin     | `crontab -e`, `insmod`, `modprobe`, `shutdown`, `reboot`                                           |
 
 Plus 10 allow exceptions for safe operations like `chmod 644`, `docker ps`, `systemctl status`, etc.
 
@@ -103,8 +102,8 @@ Add custom block rules in your `auto-mode.jsonc`:
       "category": "custom",
       "description": "Block custom dangerous command",
       "severity": "high",
-      "enabled": true
-    }
+      "enabled": true,
+    },
   ],
   "allowExceptions": [
     {
@@ -112,13 +111,13 @@ Add custom block rules in your `auto-mode.jsonc`:
       "type": "pattern",
       "pattern": "safe-operation",
       "description": "Allow safe operation",
-      "enabled": true
-    }
-  ]
+      "enabled": true,
+    },
+  ],
 }
 ```
 
-Custom rules are merged with the 30 default rules. Allow exceptions take precedence over all block rules.
+Custom rules are merged with the 52 default rules. Allow exceptions take precedence over all block rules.
 
 ## Architecture
 

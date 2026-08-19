@@ -81,17 +81,17 @@ echo ~/.config/opencode
   "llm": {
     "provider": "openai",
     "model": "qwen/qwen3.5-9b",
-    "timeout": 8000
+    "timeout": 8000,
   },
   "denyMode": "auto-retry",
   "escalation": {
     "consecutive": 3,
-    "total": 20
+    "total": 20,
   },
   "fallback": {
     "onTimeout": "ask-user",
-    "onError": "ask-user"
-  }
+    "onError": "ask-user",
+  },
 }
 ```
 
@@ -115,7 +115,7 @@ Verify that the `dist/` directory is created with compiled JavaScript files, and
 npm test
 ```
 
-All tests should pass (501 unit + integration + property-based tests).
+All tests should pass (unit + integration + property-based tests).
 
 3. **Verify plugin loads**:
 
@@ -123,7 +123,7 @@ Start OpenCode and check for initialization messages:
 
 ```
 [AutoMode][v1.0.5] PLUGIN INITIALIZED
-[AutoMode][v1.0.5] Config loaded: rules=38 exceptions=10 llm=none
+[AutoMode][v1.0.5] Config loaded: rules=52 exceptions=10 llm=none
 ```
 
 ## Troubleshooting
