@@ -392,6 +392,22 @@ describe('readSafely', () => {
     }
     expect(readSafely(path.join(link, 'id_rsa.js'))).toBeNull()
   })
+
+  it('returns null when the path resolves differently after opening (TOCTOU re-check)', () => {
+    const safeFile = path.join(tmpDir, 'safe.js')
+    const swappedFile = path.join(tmpDir, 'swapped.js')
+    fs.writeFileSync(safeFile, 'const x = 1')
+    fs.writeFileSync(swappedFile, 'const evil = 1')
+    const realpath = jest
+      .spyOn(fs, 'realpathSync')
+      .mockReturnValueOnce(safeFile)
+      .mockReturnValueOnce(swappedFile)
+    try {
+      expect(readSafely(path.join(tmpDir, 'x.js'))).toBeNull()
+    } finally {
+      realpath.mockRestore()
+    }
+  })
 })
 
 describe('isSuspiciousFileContent', () => {

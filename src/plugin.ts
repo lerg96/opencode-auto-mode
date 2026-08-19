@@ -197,14 +197,53 @@ function loadOpenCodeAllowList(agentName: string): string[] {
   }
 }
 
-const patternToRegex = (pattern: string): RegExp => {
+const globPatternToRegex = (pattern: string): string => {
   let out = ''
-  for (const ch of pattern) {
-    if (ch === '*') out += '.*'
-    else if (ch === '?') out += '.'
-    else out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  let i = 0
+  while (i < pattern.length) {
+    const ch = pattern[i]
+    if (ch === '*') {
+      out += '.*'
+      i++
+    } else if (ch === '?') {
+      out += '.'
+      i++
+    } else if (ch === '[') {
+      const close = pattern.indexOf(']', i + 1)
+      if (close === -1) {
+        out += '\\['
+        i++
+        continue
+      }
+      let inner = pattern.slice(i + 1, close)
+      if (inner.startsWith('!')) {
+        inner = '^' + inner.slice(1)
+      }
+      inner = inner.replace(/\\/g, '\\\\')
+      out += `[${inner}]`
+      i = close + 1
+    } else if (ch === '{') {
+      const close = pattern.indexOf('}', i + 1)
+      if (close === -1) {
+        out += '\\{'
+        i++
+        continue
+      }
+      const parts = pattern.slice(i + 1, close).split(',')
+      out += `(?:${parts
+        .map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|')})`
+      i = close + 1
+    } else {
+      out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      i++
+    }
   }
-  return new RegExp(`^${out}$`, 'i')
+  return out
+}
+
+const patternToRegex = (pattern: string): RegExp => {
+  return new RegExp(`^${globPatternToRegex(pattern)}$`, 'i')
 }
 
 let softRulesCache: string[] | null = null
@@ -242,7 +281,7 @@ const SECRET_FILE_PATTERN =
 const SECRET_KEYWORD_PATTERN =
   /(api[_-]?keys?|\bsecrets?\b|\btokens?\b|\bpasswords?\b)/i
 
-const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
+const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
 
 function isSimpleCommand(command: string): boolean {
   return !SHELL_SEPARATOR_RE.test(command)
@@ -560,7 +599,8 @@ async function classifyCommand(
       )
       return {
         decision: 'ask',
-        reason: 'Allow exception matched a compound command — user confirmation required',
+        reason:
+          'Allow exception matched a compound command — user confirmation required',
       }
     }
     log(
@@ -682,7 +722,7 @@ export const opencodeAutoMode = async (
         const command = output?.args?.command
         if (!command || typeof command !== 'string' || command.length === 0)
           return
-        if (command.startsWith('# BLOCKED')) return
+        if (command.startsWith('# BLOCKED') && !command.includes('\n')) return
         log(`tool.execute.before: ${input.callID} "${logCmd(command, 100)}"`)
 
         const sessionID = input.sessionID || ''
