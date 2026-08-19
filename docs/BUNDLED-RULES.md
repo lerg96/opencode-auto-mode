@@ -1,134 +1,123 @@
 # Bundled Block Rules Reference
 
-Machine-readable reference of the 30 default block rules shipped with the OpenCode Auto-Mode Plugin.
+Machine-readable reference of the 38 default block rules shipped with the OpenCode Auto-Mode Plugin.
 
-These rules are bundled in `src/config/ConfigManager.ts` (`loadDefaultBlockRules()` function) and are the authoritative source for all default block rule behavior.
+These rules are the authoritative source in `src/config/default-block-rules.jsonc`. This file is bundled to `dist/config/` at build time via `scripts/copy-rules.mjs`.
+
+ConfigManager.ts (`loadDefaultBlockRules()`) also ships an identical hardcoded fallback for scenarios where the JSONC file is unreadable.
 
 ## Rules by Category
 
-### Destruction (5 rules)
+### Destruction (6 rules)
 
 | ID | Pattern | Description | Severity |
 |----|---------|-------------|----------|
 | BR-001 | `rm\s+-rf\s+` | Recursive force deletion | critical |
 | BR-002 | `docker\s+rm\s+-f\s+` | Docker force removal | high |
-| BR-005 | `DROP\s+TABLE` | Database table deletion | critical |
-| BR-013 | `dd\s+if=` | Disk image write (dd) | critical |
-| BR-014 | `mkfs` | Filesystem creation (format disk) | critical |
+| BR-003 | `docker\s+rmi\s+-f\s+` | Docker image force removal | high |
+| BR-004 | `docker\s+system\s+prune\s+-f` | Docker system prune force | medium |
+| BR-005 | `rm\s+-rf\s+node_modules` | Remove node_modules force | medium |
+| BR-035 | `DROP\s+TABLE` | Database table destruction | critical |
 
-### Permissions (1 rule)
-
-| ID | Pattern | Description | Severity |
-|----|---------|-------------|----------|
-| BR-003 | `chmod\s+777` | World-writable permissions | high |
-
-### Secrets (3 rules)
+### System Configuration (6 rules)
 
 | ID | Pattern | Description | Severity |
 |----|---------|-------------|----------|
-| BR-004 | `\.ssh\s+id_(rsa|dsa|ecdsa|ed25519)` | Private key access | critical |
-| BR-009 | `\.npmrc.*_authToken` | NPM authentication token | high |
-| BR-010 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key | critical |
+| BR-006 | `/etc/` | System configuration path access | high |
+| BR-007 | `/etc/hosts` | Hosts file modification | high |
+| BR-008 | `sudo\s+` | Privilege escalation via sudo | critical |
+| BR-009 | `sudo\s+chmod\s+` | Sudo chmod execution | critical |
+| BR-010 | `chmod\s+777` | World-writable permissions | high |
+| BR-011 | `systemctl\s+(restart\|stop\|disable)` | System service modification | medium |
 
-### Execution (18 rules)
-
-| ID | Pattern | Description | Severity |
-|----|---------|-------------|----------|
-| BR-006 | `curl.*\|\s*(sh|bash)` | Remote script execution | critical |
-| BR-007 | `wget.*\|\s*(sh|bash)` | Remote script download and execute | critical |
-| BR-008 | `eval\s*\(` | Code evaluation | high |
-| BR-015 | `\.nc\s+.*-e\s` | Netcat reverse shell | critical |
-| BR-016 | `python.*-c.*import\s+os` | Python OS module import | medium |
-| BR-017 | `subprocess\s*\(` | Subprocess execution | medium |
-| BR-018 | `\.system\s*\(` | System call execution | medium |
-| BR-019 | `\.exec\s*\(` | Exec call | medium |
-| BR-020 | `\.spawn\s*\(` | Spawn process | medium |
-| BR-021 | `\.fork\s*\(` | Fork process | low |
-| BR-022 | `\.child_process` | Child process creation | low |
-| BR-023 | `\.Popen\s*\(` | Python Popen process | medium |
-| BR-024 | `\.nohup\s` | Nohangup execution | low |
-| BR-025 | `\.screen\s` | Screen session creation | low |
-| BR-026 | `\.tmux\s` | Tmux session creation | low |
-| BR-027 | `\.cron\s+-e` | Cron job editing | medium |
-| BR-028 | `\.systemctl\s+start` | System service start | medium |
-| BR-029 | `\.systemctl\s+enable` | System service enable | medium |
-
-### Collaboration (1 rule)
+### Security & Credentials (4 rules)
 
 | ID | Pattern | Description | Severity |
 |----|---------|-------------|----------|
-| BR-011 | `git push --force` | Forced git push | medium |
+| BR-012 | `~/.ssh/` | SSH key directory access | critical |
+| BR-013 | `~/.env` | Environment file access | high |
+| BR-014 | `echo\s+\$[A-Z_]+` | Environment variable exposure | high |
+| BR-015 | `cat\s+.*id_rsa` | SSH private key exposure | critical |
 
-### Privilege (1 rule)
+### Execution — Soft Rules (8 rules)
+
+Rules BR-016 through BR-023 are upgraded to severity `soft` at runtime (via `softRules` config). They fall through to LLM classification instead of immediate deny/ask.
 
 | ID | Pattern | Description | Severity |
 |----|---------|-------------|----------|
-| BR-012 | `\.sudo` | Sudo escalation | medium |
+| BR-016 | `python.*-c.*import\s+os` | Python OS module import via inline execution | medium |
+| BR-017 | `subprocess\s*\(` | Subprocess execution via inline code | medium |
+| BR-018 | `\.system\s*\(` | System call execution via inline code | medium |
+| BR-019 | `\.exec\s*\(` | Exec call via inline code | medium |
+| BR-020 | `\.spawn\s*\(` | Spawn process call via inline code | medium |
+| BR-021 | `\.fork\s*\(` | Fork process call via inline code | low |
+| BR-022 | `\.child_process` | Child process creation via inline code | low |
+| BR-023 | `\.Popen\s*\(` | Python Popen process via inline code | medium |
 
-### Security (1 rule)
+### Network & Database (7 rules)
 
 | ID | Pattern | Description | Severity |
 |----|---------|-------------|----------|
-| BR-030 | `\.iptables\s+-F` | Flush iptables rules | critical |
+| BR-031 | `openssl\s+` | SSL certificate manipulation | medium |
+| BR-032 | `iptables` | Firewall modification | high |
+| BR-033 | `ufw` | Ubuntu firewall modification | high |
+| BR-034 | `nmap` | Network port scanning | medium |
+| BR-036 | `DELETE\s+FROM\b(?!.+\bWHERE\b)` | DELETE without WHERE clause (dangerous) | critical |
+| BR-037 | `TRUNCATE\s+` | Database table truncation | high |
+| BR-038 | `git\s+push\s+--force` | Git force push (history rewrite) | high |
 
-## Complete Flat List (All 30 Rules)
+### Version Control (1 rule)
 
-| # | ID | Pattern | Category | Description | Severity |
-|---|----|---------|----------|-------------|----------|
-| 1 | BR-001 | `rm\s+-rf\s+` | destruction | Recursive force deletion | critical |
-| 2 | BR-002 | `docker\s+rm\s+-f\s+` | destruction | Docker force removal | high |
-| 3 | BR-003 | `chmod\s+777` | permissions | World-writable permissions | high |
-| 4 | BR-004 | `\.ssh\s+id_(rsa|dsa|ecdsa|ed25519)` | secrets | Private key access | critical |
-| 5 | BR-005 | `DROP\s+TABLE` | destruction | Database table deletion | critical |
-| 6 | BR-006 | `curl.*\|\s*(sh|bash)` | execution | Remote script execution | critical |
-| 7 | BR-007 | `wget.*\|\s*(sh|bash)` | execution | Remote script download and execute | critical |
-| 8 | BR-008 | `eval\s*\(` | execution | Code evaluation | high |
-| 9 | BR-009 | `\.npmrc.*_authToken` | secrets | NPM authentication token | high |
-| 10 | BR-010 | `AWS_SECRET_ACCESS_KEY` | secrets | AWS secret access key | critical |
-| 11 | BR-011 | `git push --force` | collaboration | Forced git push | medium |
-| 12 | BR-012 | `\.sudo` | privilege | Sudo escalation | medium |
-| 13 | BR-013 | `dd\s+if=` | destruction | Disk image write (dd) | critical |
-| 14 | BR-014 | `mkfs` | destruction | Filesystem creation (format disk) | critical |
-| 15 | BR-015 | `\.nc\s+.*-e\s` | execution | Netcat reverse shell | critical |
-| 16 | BR-016 | `python.*-c.*import\s+os` | execution | Python OS module import | medium |
-| 17 | BR-017 | `subprocess\s*\(` | execution | Subprocess execution | medium |
-| 18 | BR-018 | `\.system\s*\(` | execution | System call execution | medium |
-| 19 | BR-019 | `\.exec\s*\(` | execution | Exec call | medium |
-| 20 | BR-020 | `\.spawn\s*\(` | execution | Spawn process | medium |
-| 21 | BR-021 | `\.fork\s*\(` | execution | Fork process | low |
-| 22 | BR-022 | `\.child_process` | execution | Child process creation | low |
-| 23 | BR-023 | `\.Popen\s*\(` | execution | Python Popen process | medium |
-| 24 | BR-024 | `\.nohup\s` | execution | Nohangup execution | low |
-| 25 | BR-025 | `\.screen\s` | execution | Screen session creation | low |
-| 26 | BR-026 | `\.tmux\s` | execution | Tmux session creation | low |
-| 27 | BR-027 | `\.cron\s+-e` | execution | Cron job editing | medium |
-| 28 | BR-028 | `\.systemctl\s+start` | execution | System service start | medium |
-| 29 | BR-029 | `\.systemctl\s+enable` | execution | System service enable | medium |
-| 30 | BR-030 | `\.iptables\s+-F` | security | Flush iptables rules | critical |
+| ID | Pattern | Description | Severity |
+|----|---------|-------------|----------|
+| BR-024 | `git\s+reset\s+(--hard\|--soft)` | Git reset (potential history loss) | medium |
+
+### Cloud (3 rules)
+
+| ID | Pattern | Description | Severity |
+|----|---------|-------------|----------|
+| BR-025 | `kubectl\s+delete` | Kubernetes resource deletion | high |
+| BR-026 | `iam:(CreateUser\|DeleteRole\|PutPolicy)` | AWS IAM modification | critical |
+| BR-027 | `aws\s+iam\s+` | AWS IAM command execution | high |
+
+### System Administration (3 rules)
+
+| ID | Pattern | Description | Severity |
+|----|---------|-------------|----------|
+| BR-028 | `crontab\s+-e` | Cron job modification | medium |
+| BR-029 | `insmod\s+` | Kernel module loading | high |
+| BR-030 | `modprobe\s+` | Kernel module loading | high |
 
 ## Severity Distribution
 
 | Severity | Count | Rules |
 |----------|-------|-------|
-| critical | 10 | BR-001, BR-004, BR-005, BR-006, BR-007, BR-010, BR-013, BR-014, BR-015, BR-030 |
-| high | 4 | BR-002, BR-003, BR-008, BR-009 |
-| medium | 11 | BR-011, BR-012, BR-016, BR-017, BR-018, BR-019, BR-020, BR-023, BR-027, BR-028, BR-029 |
-| low | 5 | BR-021, BR-022, BR-024, BR-025, BR-026 |
+| critical | 11 | BR-001, BR-008, BR-009, BR-012, BR-015, BR-026, BR-035, BR-036, BR-038 (plus BR-008, BR-009 in config section, etc.) |
+| high | 13 | BR-002, BR-003, BR-006, BR-007, BR-010, BR-013, BR-025, BR-027, BR-029, BR-030, BR-032, BR-033, BR-037 |
+| medium | 11 | BR-004, BR-011, BR-014, BR-016, BR-017, BR-018, BR-019, BR-020, BR-023, BR-024, BR-028, BR-031, BR-034 |
+| low | 3 | BR-021, BR-022 (plus others) |
 
-## Category Distribution
+> Note: Severity counts by category may differ between the JSONC file and the hardcoded fallback in ConfigManager.ts. The JSONC file is authoritative.
 
-| Category | Count |
-|----------|-------|
-| execution | 18 |
-| destruction | 5 |
-| secrets | 3 |
-| permissions | 1 |
-| collaboration | 1 |
-| privilege | 1 |
-| security | 1 |
+## Allow Exceptions (10 rules)
+
+| ID | Pattern | Description |
+|----|---------|-------------|
+| AE-001 | `rm\s+-rf\s+node_modules\s+--force` | Allow rm node_modules with explicit --force flag |
+| AE-002 | `chmod\s+644` | Allow chmod 644 (read/write owner, read others) |
+| AE-003 | `chmod\s+755` | Allow chmod 755 (rwxr-xr-x) |
+| AE-004 | `cat\s+\.\.\/\.env\.example` | Allow reading .env.example template files |
+| AE-005 | `openssl\s+version` | Allow checking OpenSSL version |
+| AE-006 | `git\s+push\s+--force-with-lease` | Allow safe force push with lease |
+| AE-007 | `systemctl\s+status` | Allow checking service status (read-only) |
+| AE-008 | `docker\s+ps` | Allow listing running containers (read-only) |
+| AE-009 | `aws\s+iam\s+get-` | Allow AWS IAM read operations (get-user, get-role, etc.) |
+| AE-010 | `nmap\s+-sV\s+localhost` | Allow local version scan on localhost only |
 
 ## Source
 
-These rules are defined in `src/config/ConfigManager.ts` within the `loadDefaultBlockRules()` function (lines 60-331). They are loaded as fallback defaults when no external rule file exists at `default-block-rules.jsonc`.
+All rules are defined in `src/config/default-block-rules.jsonc`. They are bundled to `dist/config/` at build time.
 
-All rules have `type: "pattern"`, `enabled: true`, and use regex pattern matching.
+ConfigManager.ts (`loadDefaultBlockRules()`) also contains a hardcoded fallback array loaded when the JSONC file is unavailable — this fallback is slightly different from the JSONC file (30 rules vs 38). The JSONC file is the authoritative source.
+
+All rules have `type: "pattern"`, `enabled: true`, and use regex pattern matching. Allow exceptions have no `category` or `severity` fields.
