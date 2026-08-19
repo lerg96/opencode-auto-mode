@@ -152,6 +152,13 @@ export class PatternMatcher {
     filePath: string | null,
     pattern: string
   ): boolean {
+    // NOTE on glob semantics: `*` in a regex pattern matches ANY character,
+    // including `/`.  This means a pattern like `*/secret/*` as an
+    // allow-exception will match `/a/b/secret/c/d` (crossing path
+    // boundaries).  In allow-exception contexts, prefer `[^/]*` instead of
+    // `*` to restrict matching to within a single path component:
+    //   `regex:[^/]*secret/[^/]*`  instead of  `regex:*/secret/*`
+    // This is intentional — allow-exception patterns are user-provided regex.
     if (pattern.length > MAX_PATTERN_LENGTH) {
       return false
     }

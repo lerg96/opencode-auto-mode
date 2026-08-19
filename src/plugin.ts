@@ -332,7 +332,7 @@ function stripVariableExpansion(text: string): string {
 }
 
 const SECRET_ASSIGNMENT_RE =
-  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key))\b\s*[=:]\s*[^\s"';&|`$]+/gi
+  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key(?:[_ ]*ID)?))\b\s*[=:]\s*[^\s"';&|`$]+/gi
 const SECRET_FLAG_RE =
   /(--[\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
 const SECRET_VAR_REF_RE = /(\$|\$\{)[A-Za-z_]*(?:api[_-]?key|secret|token|password|passwd|credential|auth|client[_-]?secret|access[_-]?key)[\w}]*\b/gi

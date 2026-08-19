@@ -136,12 +136,23 @@ export class RuleEvaluator {
             }
           }
         } else {
-          const firstToken = trimmedSegment.split(/\s+/)[0]
-          if (firstToken.toLowerCase() === protectedName.toLowerCase()) {
-            return {
-              evaluation: 'blocked',
-              matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
-              reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
+          // For single-word protected commands, check all tokens in the
+          // segment.  This catches wrapper-command bypasses such as
+          // `timeout 10 rm -rf /` or `nohup rm -rf /` where the first
+          // token is a wrapper (timeout, nice, nohup, setsid, etc.) and
+          // the protected command appears later in the token list.
+          // Multi-word protected commands (e.g. "chmod 777") are handled
+          // above by the startsWith check and would be broken by scanning
+          // all tokens (e.g. matching "chmod" alone), so they are left to
+          // the substring-matching logic there.
+          const tokens = trimmedSegment.split(/\s+/)
+          for (const token of tokens) {
+            if (token.toLowerCase() === protectedName.toLowerCase()) {
+              return {
+                evaluation: 'blocked',
+                matchedRule: `TB-CMD-${protectedCmd.replace(/[^\w]/g, '_')}`,
+                reasoning: `Trust boundary violation: protected command '${protectedCmd}'`,
+              }
             }
           }
         }
