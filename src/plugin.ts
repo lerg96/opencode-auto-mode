@@ -316,11 +316,6 @@ function logCmd(text: string, length = 80): string {
   return redact(String(text)).slice(0, length)
 }
 
-function isSecretFileAccess(command: string): boolean {
-  const forms = [command, deobfuscateCommand(command)]
-  return forms.some((c) => matchesSecretPattern(SECRET_FILE_PATTERN, c))
-}
-
 function isSecretSensitive(command: string): boolean {
   const forms = [command, deobfuscateCommand(command)]
   return forms.some(
@@ -346,7 +341,6 @@ export {
   parseDecision,
   redact,
   logCmd,
-  isSecretFileAccess,
   isSecretSensitive,
   isSimpleCommand,
   normalizePatterns,
@@ -617,14 +611,6 @@ async function classifyCommand(
     log(
       `RULES uncertain: "${logCmd(command)}" — ${ruleResult.matchedException || ruleResult.matchedRule || 'no match'} — proceeding to LLM classification`
     )
-  }
-
-  if (isSecretFileAccess(command)) {
-    log(`SECRET-GUARD file: "${logCmd(command)}"`)
-    return {
-      decision: 'ask',
-      reason: 'Secret file access — user confirmation required',
-    }
   }
 
   const llm = config.llm || {}

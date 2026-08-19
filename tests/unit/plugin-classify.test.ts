@@ -172,11 +172,13 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       'cat ~/.pypirc',
       'cat ~/.gitconfig',
     ]
-    it.each(fileCases)('isSecretFileAccess flags: %s', async (cmd) => {
-      const M = await loadPlugin()
-      expect(M.isSecretFileAccess(cmd)).toBe(true)
-      expect(M.isSecretSensitive(cmd)).toBe(true)
-    })
+    it.each(fileCases)(
+      'isSecretSensitive flags secret file paths: %s',
+      async (cmd) => {
+        const M = await loadPlugin()
+        expect(M.isSecretSensitive(cmd)).toBe(true)
+      }
+    )
 
     it('flags sensitive keywords', async () => {
       const M = await loadPlugin()
@@ -186,7 +188,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
 
     it('does not flag benign commands', async () => {
       const M = await loadPlugin()
-      expect(M.isSecretFileAccess('ls -la /tmp')).toBe(false)
+      expect(M.isSecretSensitive('ls -la /tmp')).toBe(false)
       expect(M.isSecretSensitive('git log --oneline')).toBe(false)
     })
   })

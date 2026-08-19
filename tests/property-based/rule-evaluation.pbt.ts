@@ -4,6 +4,8 @@ import { ToolCall } from '../../src/types/ToolCall'
 import { BlockRule, AllowException } from '../../src/types/RuleTypes'
 import fc from 'fast-check'
 
+const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
+
 function createToolCall(overrides: Partial<ToolCall> = {}): ToolCall {
   return {
     toolName: 'Bash',
@@ -161,7 +163,7 @@ describe('RuleEvaluator - Property Based Tests', () => {
           toolCallArb,
           fc
             .string()
-            .filter((s) => s.length > 0 && !/[;&|`\n]|\$\s*\(/.test(s)),
+            .filter((s) => s.length > 0 && !SHELL_SEPARATOR_RE.test(s)),
           (toolCall, sharedPattern) => {
             const toolCallWithPath = createToolCall({
               arguments: { command: `${sharedPattern} extra args` },

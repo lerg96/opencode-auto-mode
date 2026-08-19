@@ -8,7 +8,7 @@ import {
 import { PatternMatcher } from './PatternMatcher'
 import { TrustBoundaryConfig } from '../types/PluginConfig'
 
-const SHELL_SEPARATOR_RE = /[;&|`\n]|\$\s*\(/
+const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
 const PATH_BOUNDARY_RE = /[\s;&|`(){}"'<>/\\]/
 
 function isProtectedPathMatch(command: string, protectedPath: string): boolean {
