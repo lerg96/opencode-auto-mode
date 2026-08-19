@@ -88,7 +88,7 @@ describe('ConfigManager loads the bundled JSONC defaults', () => {
     const ae001 = config.allowExceptions.find((e: any) => e.id === 'AE-001')
     expect(ae001).toBeDefined()
     expect((ae001 as any).pattern).toBe(
-      'rm\\s+-rf\\s+node_modules\\s+--force'
+      'rm\\s+-rf\\s+node_modules\\s+--force\\s*$'
     )
   })
 })
