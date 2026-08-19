@@ -164,6 +164,7 @@ function maybeReloadConfig(): void {
   configManager.reload(getConfigPath())
   configSignature = sig
   const config = configManager.getConfig()
+  injectionProtection?.updateConfig(config.injection)
   log(
     `Config reloaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
   )
@@ -737,8 +738,13 @@ export const opencodeAutoMode = async (
     ruleEvaluator = new RuleEvaluator(new PatternMatcher() as any)
     // Injection protection is enabled by default (see InjectionProtectionService
     // DEFAULT_PROTECTION_CONFIG); scans tool output for prompt-injection patterns.
+    // The user config `injection` section overrides the defaults (enabled flags,
+    // scan toggles, custom patterns). updateConfig only rebuilds the probe when the
+    // customPatterns reference changes; applyDefaults always produces a fresh array,
+    // so round-tripping config.injection re-applies custom patterns on every load.
     injectionProtection = new InjectionProtectionService()
     const config = configManager.getConfig()
+    injectionProtection.updateConfig(config.injection)
     log(
       `Config loaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
     )
@@ -819,6 +825,7 @@ export const opencodeAutoMode = async (
           if (info?.id) {
             sessionStates.delete(info.id)
             agentBySession.delete(info.id)
+            injectionProtection?.resetSession(info.id)
             log(`session.deleted: session=${info?.id}`)
           }
         }

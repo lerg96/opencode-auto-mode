@@ -121,6 +121,46 @@ describe('ConfigManager', () => {
       expect(manager.getRawLlmConfig()).toBeUndefined()
     })
 
+    it('should load injection section with overrides from config file', () => {
+      const validConfig = JSON.stringify({
+        llm: { provider: 'openai', model: 'gpt-4', timeout: 3000 },
+        injection: {
+          enabled: false,
+          scanUserMessages: false,
+          customPatterns: [
+            { pattern: 'CONFIG_MARKER', description: 'Config marker' },
+          ],
+        },
+      })
+
+      ;(fs.existsSync as jest.Mock).mockReturnValue(true)
+      ;(fs.readFileSync as jest.Mock).mockReturnValue(validConfig)
+
+      const manager = new ConfigManager('/test/config.jsonc')
+      const config = manager.getConfig()
+
+      expect(config.injection.enabled).toBe(false)
+      expect(config.injection.scanUserMessages).toBe(false)
+      expect(config.injection.scanToolResults).toBe(true)
+      expect(config.injection.customPatterns).toEqual([
+        { pattern: 'CONFIG_MARKER', description: 'Config marker' },
+      ])
+    })
+
+    it('should apply injection defaults when config file does not exist', () => {
+      ;(fs.existsSync as jest.Mock).mockReturnValue(false)
+
+      const manager = new ConfigManager('/nonexistent/config.jsonc')
+      const config = manager.getConfig()
+
+      expect(config.injection).toEqual({
+        enabled: true,
+        scanToolResults: true,
+        scanUserMessages: true,
+        customPatterns: [],
+      })
+    })
+
     it('should apply default excludedAgents when config omits them', () => {
       ;(fs.existsSync as jest.Mock).mockReturnValue(true)
       ;(fs.readFileSync as jest.Mock).mockReturnValue(
@@ -341,6 +381,52 @@ describe('applyDefaults', () => {
   it('should handle undefined input', () => {
     const result = applyDefaults(undefined)
     expect(result.llm.provider).toBe('anthropic')
+  })
+
+  it('should apply injection defaults for empty object', () => {
+    const result = applyDefaults({})
+
+    expect(result.injection).toEqual({
+      enabled: true,
+      scanToolResults: true,
+      scanUserMessages: true,
+      customPatterns: [],
+    })
+  })
+
+  it('should merge partial injection config with defaults', () => {
+    const result = applyDefaults({
+      injection: {
+        scanToolResults: false,
+        customPatterns: [
+          { pattern: 'CUSTOM_MARKER', description: 'Custom marker' },
+        ],
+      },
+    })
+
+    expect(result.injection.enabled).toBe(true)
+    expect(result.injection.scanToolResults).toBe(false)
+    expect(result.injection.scanUserMessages).toBe(true)
+    expect(result.injection.customPatterns).toEqual([
+      { pattern: 'CUSTOM_MARKER', description: 'Custom marker' },
+    ])
+  })
+
+  it('should fall back to default customPatterns when injection.customPatterns is not an array', () => {
+    const result = applyDefaults({
+      injection: { customPatterns: 'not-an-array' as any },
+    })
+
+    expect(result.injection.customPatterns).toEqual([])
+  })
+
+  it('should not alias customPatterns to the shared default array', () => {
+    const first = applyDefaults({})
+    const second = applyDefaults({})
+
+    first.injection.customPatterns!.push({ pattern: 'MUT', description: 'd' })
+
+    expect(second.injection.customPatterns).toEqual([])
   })
 })
 

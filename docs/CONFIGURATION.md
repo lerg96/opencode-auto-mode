@@ -213,6 +213,32 @@ Controls behavior when the LLM API fails.
 }
 ```
 
+### Injection Protection
+
+Controls prompt-injection scanning of Bash tool output and user messages. Enabled by default.
+
+```jsonc
+{
+  "injection": {
+    "enabled": true,
+    "scanToolResults": true,
+    "scanUserMessages": true,
+    "customPatterns": [
+      { "pattern": "YOUR_CUSTOM_MARKER", "description": "Describe the marker" },
+    ],
+  },
+}
+```
+
+| Field               | Type                                                          | Default | Description                                                    |
+| ------------------- | ------------------------------------------------------------- | ------- | -------------------------------------------------------------- |
+| `enabled`           | boolean                                                       | `true`  | Master switch for all injection scanning                       |
+| `scanToolResults`   | boolean                                                       | `true`  | Scan Bash tool output for injection patterns                   |
+| `scanUserMessages`  | boolean                                                       | `true`  | Scan user messages for injection patterns                      |
+| `customPatterns`    | `Array<{ pattern: string; description: string }>`             | `[]`    | Extra patterns (matched case-insensitively) to flag for review |
+
+Custom patterns are compiled into regexes and matched against scanned content. When a pattern matches, the tool result is flagged for manual review. The pattern is only applied if it compiles to a valid regex and is not rejected by the ReDoS guard.
+
 ## Default Block Rules
 
 The plugin ships with 52 default block rules (BR-001 through BR-052) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/config/` at build time via the `scripts/copy-rules.mjs` script.

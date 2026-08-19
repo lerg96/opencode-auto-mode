@@ -68,6 +68,24 @@
   },
 
   // ============================================================================
+  // Injection Protection
+  // ============================================================================
+  // Scans Bash tool output (and optionally user messages) for prompt-injection
+  // patterns. Enabled by default. Add custom patterns to extend detection.
+  "injection": {
+    // Master switch for all injection scanning (default: true)
+    "enabled": true,
+    // Scan Bash tool output for injection patterns (default: true)
+    "scanToolResults": true,
+    // Scan user messages for injection patterns (default: true)
+    "scanUserMessages": true,
+    // Extra patterns to detect, each with a human-readable description
+    "customPatterns": [
+      // { "pattern": "YOUR_CUSTOM_MARKER", "description": "Describe the marker" }
+    ]
+  },
+
+  // ============================================================================
   // Custom Block Rules
   // ============================================================================
   // Add custom block rules that are merged with the 30 default rules.

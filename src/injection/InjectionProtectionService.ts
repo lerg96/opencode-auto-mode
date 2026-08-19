@@ -9,6 +9,9 @@ export interface InjectionProtectionConfig {
 }
 
 const MAX_PATTERN_LENGTH = 500
+// Bounds the sessionsScanned map so it cannot grow unbounded if sessions are
+// deleted without emitting a session.deleted event (see resetSession).
+const MAX_SCANNED_SESSIONS = 200
 const REDOS_PATTERNS = [
   /\(\[[^)]*\]\)\*[+*]/,
   /\(\[[^)]*\]\)\+[+*]/,
@@ -88,7 +91,12 @@ export class InjectionProtectionService {
 
     if (sessionId) {
       const count = this.sessionsScanned.get(sessionId) || 0
+      this.sessionsScanned.delete(sessionId)
       this.sessionsScanned.set(sessionId, count + 1)
+      if (this.sessionsScanned.size > MAX_SCANNED_SESSIONS) {
+        const oldest = this.sessionsScanned.keys().next().value
+        if (oldest !== undefined) this.sessionsScanned.delete(oldest)
+      }
     }
 
     if (result.injected) {

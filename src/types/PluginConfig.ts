@@ -29,6 +29,13 @@ export interface FallbackConfig {
   onError: FallbackAction
 }
 
+export interface InjectionConfig {
+  enabled?: boolean
+  scanToolResults?: boolean
+  scanUserMessages?: boolean
+  customPatterns?: Array<{ pattern: string; description: string }>
+}
+
 export interface PluginConfig {
   llm: LLMProviderConfig
   denyMode: DenyMode
@@ -38,6 +45,7 @@ export interface PluginConfig {
   trustBoundary: TrustBoundaryConfig
   excludedAgents: string[]
   fallback: FallbackConfig
+  injection: InjectionConfig
 }
 
 export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
@@ -83,6 +91,13 @@ export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
   onError: 'ask-user',
 }
 
+export const DEFAULT_INJECTION_CONFIG: InjectionConfig = {
+  enabled: true,
+  scanToolResults: true,
+  scanUserMessages: true,
+  customPatterns: [],
+}
+
 export const DEFAULT_CONFIG: PluginConfig = {
   llm: DEFAULT_LLM_CONFIG,
   denyMode: 'auto-retry',
@@ -92,6 +107,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
   trustBoundary: DEFAULT_TRUST_BOUNDARY,
   excludedAgents: ['explore', 'research'],
   fallback: DEFAULT_FALLBACK_CONFIG,
+  injection: DEFAULT_INJECTION_CONFIG,
 }
 
 export function validateRequiredFields(config: unknown): boolean {
@@ -126,6 +142,8 @@ export function applyDefaults(config: unknown): PluginConfig {
           ''
         : '',
   }
+  const parsedInjection =
+    (parsed.injection as Record<string, unknown> | undefined) || {}
   return {
     llm: {
       ...DEFAULT_LLM_CONFIG,
@@ -151,6 +169,26 @@ export function applyDefaults(config: unknown): PluginConfig {
     fallback: {
       ...DEFAULT_FALLBACK_CONFIG,
       ...((parsed.fallback as Record<string, unknown>) || {}),
+    },
+    injection: {
+      enabled:
+        typeof parsedInjection.enabled === 'boolean'
+          ? parsedInjection.enabled
+          : DEFAULT_INJECTION_CONFIG.enabled,
+      scanToolResults:
+        typeof parsedInjection.scanToolResults === 'boolean'
+          ? parsedInjection.scanToolResults
+          : DEFAULT_INJECTION_CONFIG.scanToolResults,
+      scanUserMessages:
+        typeof parsedInjection.scanUserMessages === 'boolean'
+          ? parsedInjection.scanUserMessages
+          : DEFAULT_INJECTION_CONFIG.scanUserMessages,
+      customPatterns: Array.isArray(parsedInjection.customPatterns)
+        ? (parsedInjection.customPatterns as Array<{
+            pattern: string
+            description: string
+          }>)
+        : [],
     },
   }
 }
