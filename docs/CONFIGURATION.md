@@ -215,14 +215,14 @@ Controls behavior when the LLM API fails.
 
 ### Injection Protection
 
-Controls prompt-injection scanning of Bash tool output and user messages. Enabled by default.
+Controls prompt-injection scanning of Bash tool output. Enabled by default.
 
 ```jsonc
 {
   "injection": {
     "enabled": true,
     "scanToolResults": true,
-    "scanUserMessages": true,
+    "scanUserMessages": false,
     "customPatterns": [
       { "pattern": "YOUR_CUSTOM_MARKER", "description": "Describe the marker" },
     ],
@@ -234,7 +234,7 @@ Controls prompt-injection scanning of Bash tool output and user messages. Enable
 | ------------------- | ------------------------------------------------------------- | ------- | -------------------------------------------------------------- |
 | `enabled`           | boolean                                                       | `true`  | Master switch for all injection scanning                       |
 | `scanToolResults`   | boolean                                                       | `true`  | Scan Bash tool output for injection patterns                   |
-| `scanUserMessages`  | boolean                                                       | `true`  | Scan user messages for injection patterns                      |
+| `scanUserMessages`  | boolean                                                       | `false` | Reserved. Not wired to any OpenCode hook (no user-message hook exists), so it has no effect. Kept for backward compatibility. |
 | `customPatterns`    | `Array<{ pattern: string; description: string }>`             | `[]`    | Extra patterns (matched case-insensitively) to flag for review |
 
 Custom patterns are compiled into regexes and matched against scanned content. When a pattern matches, the tool result is flagged for manual review. The pattern is only applied if it compiles to a valid regex and is not rejected by the ReDoS guard.

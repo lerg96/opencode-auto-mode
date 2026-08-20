@@ -156,7 +156,7 @@ describe('ConfigManager', () => {
       expect(config.injection).toEqual({
         enabled: true,
         scanToolResults: true,
-        scanUserMessages: true,
+        scanUserMessages: false,
         customPatterns: [],
       })
     })
@@ -389,7 +389,7 @@ describe('applyDefaults', () => {
     expect(result.injection).toEqual({
       enabled: true,
       scanToolResults: true,
-      scanUserMessages: true,
+      scanUserMessages: false,
       customPatterns: [],
     })
   })
@@ -406,7 +406,7 @@ describe('applyDefaults', () => {
 
     expect(result.injection.enabled).toBe(true)
     expect(result.injection.scanToolResults).toBe(false)
-    expect(result.injection.scanUserMessages).toBe(true)
+    expect(result.injection.scanUserMessages).toBe(false)
     expect(result.injection.customPatterns).toEqual([
       { pattern: 'CUSTOM_MARKER', description: 'Custom marker' },
     ])

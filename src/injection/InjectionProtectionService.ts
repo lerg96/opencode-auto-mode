@@ -46,7 +46,7 @@ export interface InjectionProtectionHookResult {
 const DEFAULT_PROTECTION_CONFIG: InjectionProtectionConfig = {
   enabled: true,
   scanToolResults: true,
-  scanUserMessages: true,
+  scanUserMessages: false,
 }
 
 export class InjectionProtectionService {
@@ -104,24 +104,6 @@ export class InjectionProtectionService {
         injectionDetected: true,
         result,
         message: `Injection detected: ${result.pattern} (${result.patternType}). Manual review required.`,
-      }
-    }
-
-    return { injectionDetected: false }
-  }
-
-  async scanMessage(message: string): Promise<InjectionProtectionHookResult> {
-    if (!this.config.enabled || !this.config.scanUserMessages) {
-      return { injectionDetected: false }
-    }
-
-    const result = await this.probe.scan(message)
-
-    if (result.injected) {
-      return {
-        injectionDetected: true,
-        result,
-        message: `Injection detected in message: ${result.pattern} (${result.patternType}).`,
       }
     }
 

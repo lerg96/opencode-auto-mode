@@ -70,15 +70,16 @@
   // ============================================================================
   // Injection Protection
   // ============================================================================
-  // Scans Bash tool output (and optionally user messages) for prompt-injection
-  // patterns. Enabled by default. Add custom patterns to extend detection.
+  // Scans Bash tool output for prompt-injection patterns. Enabled by default.
+  // Add custom patterns to extend detection.
   "injection": {
     // Master switch for all injection scanning (default: true)
     "enabled": true,
     // Scan Bash tool output for injection patterns (default: true)
     "scanToolResults": true,
-    // Scan user messages for injection patterns (default: true)
-    "scanUserMessages": true,
+    // Reserved: user-message scanning is NOT wired to any OpenCode hook, so it
+    // is disabled by default and has no effect (default: false)
+    "scanUserMessages": false,
     // Extra patterns to detect, each with a human-readable description
     "customPatterns": [
       // { "pattern": "YOUR_CUSTOM_MARKER", "description": "Describe the marker" }
