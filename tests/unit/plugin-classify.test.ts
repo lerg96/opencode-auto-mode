@@ -1227,8 +1227,13 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
         const body = JSON.parse(
           (global.fetch as jest.Mock).mock.calls[0][1].body
         )
-        expect(body.messages[0].content).not.toContain('topsecret-leak')
-        expect(body.messages[0].content).not.toContain('FILE CONTEXT')
+        const allContent = body.messages
+          .map((m: { content: string }) => m.content)
+          .join('\n')
+        expect(allContent).not.toContain('topsecret-leak')
+        expect(allContent).not.toContain('FILE CONTEXT')
+        expect(body.messages[0].role).toBe('system')
+        expect(body.messages[1].role).toBe('user')
       } finally {
         fs.rmSync(protectedDir, { recursive: true, force: true })
         fs.rmSync(path.join(os.tmpdir(), `am-junction-${process.pid}`), {

@@ -36,6 +36,7 @@ interface LlmCallParams {
   model: string
   fallbackModel: string
   prompt: string
+  systemPrompt?: string
   timeoutMs: number
   maxTokens?: number
   temperature?: number
@@ -53,13 +54,20 @@ function makeRequest(
   apiKey: string,
   model: string,
   prompt: string,
+  systemPrompt: string | undefined,
   maxTokens: number,
   temperature: number,
   fetchImpl: typeof fetch
 ): Promise<Response> {
+  const messages = systemPrompt
+    ? [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ]
+    : [{ role: 'user', content: prompt }]
   const request: LlmApiClientRequest = {
     model,
-    messages: [{ role: 'user', content: prompt }],
+    messages,
     max_tokens: maxTokens,
     temperature,
     stream: false,
@@ -124,6 +132,7 @@ export async function callLlmWithFallback(
     model,
     fallbackModel,
     prompt,
+    systemPrompt,
     timeoutMs = 8000,
     maxTokens = DEFAULT_MAX_TOKENS,
     temperature = 0,
@@ -141,6 +150,7 @@ export async function callLlmWithFallback(
           apiKey,
           m,
           prompt,
+          systemPrompt,
           maxTokens,
           temperature,
           fetchImpl

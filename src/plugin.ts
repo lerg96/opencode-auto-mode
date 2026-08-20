@@ -22,7 +22,8 @@ import {
   isSafeFile,
   readSafely,
   isSuspiciousFileContent,
-  buildClassifierPrompt as baseBuildClassifierPrompt,
+  buildSystemPrompt,
+  buildUserPrompt,
 } from './utils/FileExtraction.js'
 import { version } from '../package.json'
 
@@ -417,7 +418,6 @@ function getSessionTrackingSize(): {
 }
 
 export { callLlmWithFallback } from './LlmClient.js'
-const buildClassifierPrompt = baseBuildClassifierPrompt
 
 function isValidRegex(pattern: string): boolean {
   try {
@@ -495,7 +495,8 @@ function getConfig(): any {
 async function callLLMWithFallback(
   model: string,
   fallbackModel: string,
-  prompt: string
+  prompt: string,
+  systemPrompt?: string
 ): Promise<string> {
   const llm = getConfig().llm || {}
   const baseUrl = llm.baseUrl || 'http://localhost:18780/v1'
@@ -508,6 +509,7 @@ async function callLLMWithFallback(
     model,
     fallbackModel,
     prompt,
+    systemPrompt,
     timeoutMs,
   })
   if (result.usedFallback) {
@@ -516,7 +518,7 @@ async function callLLMWithFallback(
   return result.content
 }
 
-async function callLLM(prompt: string): Promise<string> {
+async function callLLM(prompt: string, systemPrompt?: string): Promise<string> {
   const llm = getConfig().llm || {}
   const rawLlm = configManager?.getRawLlmConfig()
 
@@ -537,6 +539,7 @@ async function callLLM(prompt: string): Promise<string> {
       model,
       fallbackModel: '',
       prompt,
+      systemPrompt,
       timeoutMs: llm.timeout || 8000,
     })
     return result.content
@@ -544,12 +547,15 @@ async function callLLM(prompt: string): Promise<string> {
 
   const fallbackModel =
     typeof rawLlm.fallbackModel === 'string' ? rawLlm.fallbackModel : ''
-  return callLLMWithFallback(model, fallbackModel, prompt)
+  return callLLMWithFallback(model, fallbackModel, prompt, systemPrompt)
 }
 
 let llmQueue: Promise<any> = Promise.resolve()
-function callLLMSerialized(prompt: string): Promise<string> {
-  const task = llmQueue.then(() => callLLM(prompt))
+function callLLMSerialized(
+  prompt: string,
+  systemPrompt?: string
+): Promise<string> {
+  const task = llmQueue.then(() => callLLM(prompt, systemPrompt))
   llmQueue = task.catch(() => {})
   return task
 }
@@ -699,7 +705,8 @@ async function classifyCommand(
       }
     }
     const text = await callLLMSerialized(
-      buildClassifierPrompt(command, filePath, fileContent)
+      buildUserPrompt(command, filePath, fileContent),
+      buildSystemPrompt()
     )
     const result = parseDecision(text)
     log(

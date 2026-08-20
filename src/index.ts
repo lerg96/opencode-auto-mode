@@ -6,6 +6,8 @@ export {
   isSafeFile,
   readSafely,
   isSuspiciousFileContent,
+  buildSystemPrompt,
+  buildUserPrompt,
   buildClassifierPrompt,
 } from './utils/FileExtraction.js'
 

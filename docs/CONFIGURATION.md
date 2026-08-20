@@ -525,7 +525,12 @@ Any secret guard hit returns `ask` (never auto-allowed), regardless of `fallback
 
 ## Prompt Sanitization
 
-Before sending a command (and any file content) to the LLM, `sanitizeForPrompt()` applies three transformations:
+The classifier request is split into two chat messages to maximize provider-side prompt caching:
+
+- **`system` message** — fully static (role instructions, block/allow guidance, "UNTRUSTED data" warning, output format). Identical across every call, so it is a stable cache prefix.
+- **`user` message** — the dynamic part: file context (when present) and `Command to classify: ...`.
+
+Only the dynamic command/file content goes into the `user` message. Before sending, `sanitizeForPrompt()` applies three transformations to both the command and any file content:
 
 1. **Code fence breaking**: ` ``` ` is replaced with `` ` ` ` `` to prevent the command from being interpreted as a code fence by the LLM.
 2. **Horizontal rule breaking**: Lines consisting of three or more dashes (`---`) are replaced with `---`.

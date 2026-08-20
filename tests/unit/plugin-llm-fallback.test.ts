@@ -351,6 +351,31 @@ describe('LLM Fallback (LlmClient)', () => {
       expect(body.temperature).toBe(0)
       expect(body.stream).toBe(false)
     })
+
+    it('should send system prompt as a system message when provided', async () => {
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValueOnce(mockFetchResponse(true, 200, 'test'))
+
+      await callLlmWithFallback({
+        baseUrl: 'http://custom.local/v1',
+        apiKey: 'my-api-key',
+        model: 'my-model',
+        fallbackModel: 'fb-model',
+        prompt: 'the dynamic command',
+        systemPrompt: 'static classification rules',
+        timeoutMs: 8888,
+        fetchImpl: fetchMock as any,
+      })
+
+      const [url, options] = (fetchMock as any).mock.calls[0]
+      const body = JSON.parse(options.body)
+      expect(url).toBe('http://custom.local/v1/chat/completions')
+      expect(body.messages).toEqual([
+        { role: 'system', content: 'static classification rules' },
+        { role: 'user', content: 'the dynamic command' },
+      ])
+    })
   })
 
   describe('empty response handling', () => {
