@@ -22,13 +22,20 @@ function isProtectedPathMatch(command: string, protectedPath: string): boolean {
       ? protectedPath.slice(0, -1)
       : protectedPath
   if (target.length === 0) return false
-  let index = command.indexOf(target)
+  // Case-insensitive match: on win32 the filesystem is case-insensitive, so a
+  // protected path like "C:\Windows\" must also block "C:\WINDOWS\" (and
+  // "~/.ssh/" must block "~/.SSH/"). On case-sensitive filesystems this only
+  // over-blocks (fail-closed), never under-blocks. Trust boundary is a security
+  // boundary, so conservative matching is correct.
+  const lowerCommand = command.toLowerCase()
+  const lowerTarget = target.toLowerCase()
+  let index = lowerCommand.indexOf(lowerTarget)
   while (index !== -1) {
-    const next = command.charAt(index + target.length)
+    const next = lowerCommand.charAt(index + lowerTarget.length)
     if (next === '' || PATH_BOUNDARY_RE.test(next)) {
       return true
     }
-    index = command.indexOf(target, index + target.length)
+    index = lowerCommand.indexOf(lowerTarget, index + lowerTarget.length)
   }
   return false
 }
