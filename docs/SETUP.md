@@ -122,8 +122,8 @@ All tests should pass (unit + integration + property-based tests).
 Start OpenCode and check for initialization messages:
 
 ```
-[AutoMode][v1.3.0] PLUGIN INITIALIZED
-[AutoMode][v1.3.0] Config loaded: rules=53 exceptions=10 llm=none
+[AutoMode][v1.3.1] PLUGIN INITIALIZED
+[AutoMode][v1.3.1] Config loaded: rules=53 exceptions=10 llm=none
 ```
 
 ## Troubleshooting
