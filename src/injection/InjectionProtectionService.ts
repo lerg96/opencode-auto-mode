@@ -128,25 +128,6 @@ export class InjectionProtectionService {
     return { injectionDetected: false }
   }
 
-  async handleToolResult(context: {
-    sessionId?: string
-    toolResult?: string
-  }): Promise<InjectionProtectionHookResult> {
-    if (!this.config.enabled || !this.config.scanToolResults) {
-      return { injectionDetected: false }
-    }
-
-    if (!context.toolResult) {
-      return { injectionDetected: false }
-    }
-
-    return await this.scanToolResult(context.toolResult, context.sessionId)
-  }
-
-  getScanCount(sessionId: string): number {
-    return this.sessionsScanned.get(sessionId) || 0
-  }
-
   resetSession(sessionId: string): void {
     this.sessionsScanned.delete(sessionId)
   }

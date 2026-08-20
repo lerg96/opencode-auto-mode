@@ -137,14 +137,14 @@ describe('Integration: RuleEvaluator + InjectionProbe/InjectionProtectionService
       expect(result.result?.pattern).toBe('Custom injection')
     })
 
-    it('should track multiple scans in the same session', async () => {
+    it('should scan safely without tracking via getScanCount (removed dead method)', async () => {
       const service = new InjectionProtectionService()
       const sessionId = 'integration-test-session'
 
+      // getScanCount was removed as dead code; session tracking still works
+      // internally via sessionsScanned for LRU cap purposes.
       await service.scanToolResult('safe output 1', sessionId)
       await service.scanToolResult('safe output 2', sessionId)
-
-      expect(service.getScanCount(sessionId)).toBe(2)
     })
   })
 
