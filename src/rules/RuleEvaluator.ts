@@ -12,16 +12,23 @@ const SHELL_SEPARATOR_RE = /[;|`\n]|\$\s*\(|<\(|(?<![<>\d])&(?![>])/
 const PATH_BOUNDARY_RE = /[\s;&|`(){}"'<>/\\]/
 
 function isProtectedPathMatch(command: string, protectedPath: string): boolean {
-  if (protectedPath.endsWith('/') || protectedPath.endsWith('\\')) {
-    return command.includes(protectedPath)
-  }
-  let index = command.indexOf(protectedPath)
+  // Normalize trailing separators so a protected directory matches both
+  // "cat /etc/passwd" and "cd /etc; cat shadow" forms, while still requiring a
+  // boundary character after the match to avoid sibling-prefix false positives
+  // (e.g. "/etc/hosts" must not match "/etc/hosts.deny").
+  const target =
+    protectedPath.length > 1 &&
+    (protectedPath.endsWith('/') || protectedPath.endsWith('\\'))
+      ? protectedPath.slice(0, -1)
+      : protectedPath
+  if (target.length === 0) return false
+  let index = command.indexOf(target)
   while (index !== -1) {
-    const next = command.charAt(index + protectedPath.length)
+    const next = command.charAt(index + target.length)
     if (next === '' || PATH_BOUNDARY_RE.test(next)) {
       return true
     }
-    index = command.indexOf(protectedPath, index + protectedPath.length)
+    index = command.indexOf(target, index + target.length)
   }
   return false
 }

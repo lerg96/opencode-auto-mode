@@ -94,7 +94,7 @@ export const DEFAULT_FALLBACK_CONFIG: FallbackConfig = {
 export const DEFAULT_INJECTION_CONFIG: InjectionConfig = {
   enabled: true,
   scanToolResults: true,
-  scanUserMessages: true,
+  scanUserMessages: false,
   customPatterns: [],
 }
 

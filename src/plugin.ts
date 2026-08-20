@@ -11,6 +11,13 @@ import { EscalationService } from './escalation/EscalationService.js'
 import { DenyAndContinueService } from './deny-and-continue/DenyAndContinueService.js'
 import { InjectionProtectionService } from './injection/InjectionProtectionService.js'
 import {
+  SECRET_ASSIGNMENT_RE,
+  SECRET_FLAG_RE,
+  BEARER_RE,
+  URL_CRED_RE,
+  redact,
+} from './utils/Redact.js'
+import {
   extractFileFromCommand,
   isSafeFile,
   readSafely,
@@ -332,22 +339,7 @@ function stripVariableExpansion(text: string): string {
   return text.replace(/\$\{[^}]*\}/g, '').replace(/\$[A-Za-z_][\w]*/g, '')
 }
 
-const SECRET_ASSIGNMENT_RE =
-  /\b(api[_-]?key|secret|token|password|passwd|pwd|credential|auth|client[_-]?secret|access[_-]?key|aws[_-]?(?:secret[_-]?access[_-]?key|access[_-]?key(?:[_ ]*ID)?))\b\s*[=:]\s*[^\s"';&|`$]+/gi
-const SECRET_FLAG_RE =
-  /(--[\w-]*(?:key|token|secret|password|credential|auth|pwd))(\s*[=:]\s*|\s+)[^\s"';&|`$]+/gi
 const SECRET_VAR_REF_RE = /(\$|\$\{)[A-Za-z_]*(?:api[_-]?key|secret|token|password|passwd|credential|auth|client[_-]?secret|access[_-]?key)[\w}]*\b/gi
-const BEARER_RE = /(Authorization\s*:\s*Bearer\s+)[^\s"';&|`$]+/gi
-const URL_CRED_RE = /(\bhttps?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi
-
-function redact(text: string): string {
-  if (!text) return text
-  return text
-    .replace(BEARER_RE, '$1***REDACTED***')
-    .replace(URL_CRED_RE, '$1***REDACTED***@')
-    .replace(SECRET_ASSIGNMENT_RE, '$1=***REDACTED***')
-    .replace(SECRET_FLAG_RE, '$1***REDACTED***')
-}
 
 function logCmd(text: string, length = 80): string {
   return redact(String(text)).slice(0, length)
