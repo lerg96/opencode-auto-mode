@@ -89,7 +89,7 @@
   // ============================================================================
   // Custom Block Rules
   // ============================================================================
-  // Add custom block rules that are merged with the 52 default rules.
+  // Add custom block rules that are merged with the 53 default rules.
   // Pattern types:
   //   Simple substring: "rm -rf" (matches if substring found)
   //   Regex: "regex:rm\\s+-\\s*rf" (uses regex pattern matching)

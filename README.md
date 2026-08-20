@@ -5,7 +5,7 @@ Automatic command approval for OpenCode, implementing LLM-based two-stage classi
 ## Features
 
 - **Two-Stage Classification**: Fast pattern-matching filter (Stage 1) + LLM semantic classification (Stage 2)
-- **52 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, cloud, database, version control, and more
+- **53 Default Block Rules**: Covers destructive operations, system configuration, security, credentials, cloud, database, version control, and more
 - **10 Allow Exceptions**: Safe carve-outs for common developer actions (compound commands require all-segment match)
 - **Secret Guard**: Detects embedded credentials, Bearer tokens, URL credentials, obfuscated paths; always returns `ask` regardless of fallback settings
 - **Configurable Fallback**: ask-user, allow, or deny on LLM errors/timeouts (with automatic retry on HTTP 408/429/5xx)
@@ -69,7 +69,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete configuratio
 
 ## Block Rules Overview
 
-The plugin ships with 52 default block rules covering:
+The plugin ships with 53 default block rules covering:
 
 | Category         | Examples                                                                                           |
 | ---------------- | -------------------------------------------------------------------------------------------------- |
@@ -117,7 +117,7 @@ Add custom block rules in your `auto-mode.jsonc`:
 }
 ```
 
-Custom rules are merged with the 52 default rules. Allow exceptions take precedence over all block rules.
+Custom rules are merged with the 53 default rules. Allow exceptions take precedence over all block rules.
 
 ## Architecture
 

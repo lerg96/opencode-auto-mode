@@ -1,6 +1,6 @@
 # Bundled Block Rules Reference
 
-Machine-readable reference of the 52 default block rules shipped with the OpenCode Auto-Mode Plugin.
+Machine-readable reference of the 53 default block rules shipped with the OpenCode Auto-Mode Plugin.
 
 These rules are the authoritative source in `src/config/default-block-rules.jsonc`. This file is bundled to `dist/default-block-rules.jsonc` at build time via `scripts/copy-rules.mjs`.
 
@@ -8,7 +8,7 @@ ConfigManager.ts (`loadDefaultBlockRules()`) also ships an identical hardcoded f
 
 ## Rules by Category
 
-### Destruction (11 rules)
+### Destruction (12 rules)
 
 | ID     | Pattern                                     | Description                                     | Severity                           |
 | ------ | ------------------------------------------- | ----------------------------------------------- | ---------------------------------- |
@@ -17,12 +17,13 @@ ConfigManager.ts (`loadDefaultBlockRules()`) also ships an identical hardcoded f
 | BR-003 | `docker\s+rmi\s+-f\s+`                      | Docker image force removal                      | high                               |
 | BR-004 | `docker\s+system\s+prune\s+-f`              | Docker system prune force                       | medium                             |
 | BR-005 | `rm\s+-rf\s+node_modules`                   | Remove node_modules force                       | medium                             |
-| BR-039 | `rm\s+-{1,2}[a-zA-Z]*r[a-zA-Z]*\s+[/.]\s*$` | Recursive deletion of root or current directory | critical                           |
-| BR-040 | `rm\s+--recursive                           | --force`                                        | Long-form recursive force deletion | critical |
-| BR-041 | `xargs\s+rm\s+`                             | Deletion via xargs                              | high                               |
-| BR-042 | `find\s+.*-delete`                          | Recursive deletion via find -delete             | high                               |
-| BR-043 | `dd\s+if=.*of=/dev/`                        | Raw disk write via dd                           | critical                           |
-| BR-044 | `mkfs`                                      | Filesystem formatting                           | critical                           |
+| BR-039 | `rm\s+-{1,2}[a-zA-Z]*r[a-zA-Z]*\s+[/.]\s*(?:$|#|[;&|)])`         | Recursive deletion of root or current directory (not fooled by trailing &&, ;, |, #) | critical |
+| BR-040 | `rm\s+--recursive\b[^;|]*--force\b\|rm\s+--force\b[^;|]*--recursive\b` | Long-form recursive force deletion (either flag order)                                 | critical |
+| BR-041 | `xargs\s+[^;&|\n]*\brm\s+`                                       | Deletion via xargs (incl. option flags before rm)                                     | high     |
+| BR-042 | `find\s+.*(?:-delete\b\|-exec\S*\s+.*\brm\s+)`                  | Recursive deletion via find -delete or -exec/-execdir rm                              | high     |
+| BR-043 | `\bdd\b\s+(?=[^;&]*\bif=)(?=[^;&]*\bof=/dev/)`                  | Raw disk write via dd (if=/of=/dev/ in any order)                                     | critical |
+| BR-044 | `\b(?:mkfs\|mke2fs)\b`                                           | Filesystem formatting (incl. mke2fs backend)                                          | critical |
+| BR-053 | `\brm\b(?=(?:[^;&]*[\s;&]\|^)(?:-[rR]\|--recursive)\b)(?=(?:[^;&]*[\s;&]\|^)(?:-[fF]\|--force)\b)` | rm with separated recursive (-r/-R/--recursive) and force (-f/--force) flags          | critical |
 
 ### System Configuration (9 rules)
 
@@ -82,7 +83,7 @@ Rules BR-016 through BR-023 are upgraded to severity `soft` at runtime (via `sof
 | ID     | Pattern                                                          | Description                        | Severity |
 | ------ | ---------------------------------------------------------------- | ---------------------------------- | -------- |
 | BR-024 | `git\s+reset\s+(--hard\|--soft)`                                 | Git reset (potential history loss) | medium   |
-| BR-038 | `git\s+push\s+(?:-f\b\|--force\b)\|git\s+push\s+.*\s--force\b`   | Git force push (history rewrite)   | high     |
+| BR-038 | `git\s+push\s+(?:-f\b\|--force\b)\|git\s+push\s+.*\s--force\b\|git\s+push\s+.*\s-f\b` | Git force push (history rewrite, incl. -f and trailing -f) | high     |
 
 ### Cloud (3 rules)
 
@@ -99,30 +100,30 @@ Rules BR-016 through BR-023 are upgraded to severity `soft` at runtime (via `sof
 | BR-028 | `crontab\s+-e` | Cron job modification | medium   |
 | BR-029 | `insmod\s+`    | Kernel module loading | high     |
 | BR-030 | `modprobe\s+`  | Kernel module loading | high     |
-| BR-045 | `\bshutdown\b` | System shutdown       | high     |
+| BR-045 | `\b(?:shutdown\|halt\|poweroff)\b` | System shutdown (incl. halt/poweroff) | high     |
 | BR-046 | `\breboot\b`   | System reboot         | high     |
 
 ## Severity Distribution
 
 | Severity | Count | Rule IDs                                                                                                                                                                       |
 | -------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| critical | 12    | BR-001, BR-008, BR-009, BR-012, BR-015, BR-026, BR-035, BR-036, BR-039, BR-040, BR-043, BR-044                                                                                 |
+| critical | 13    | BR-001, BR-008, BR-009, BR-012, BR-015, BR-026, BR-035, BR-036, BR-039, BR-040, BR-043, BR-044, BR-053                                                                |
 | high     | 23    | BR-002, BR-003, BR-006, BR-007, BR-010, BR-013, BR-014, BR-025, BR-027, BR-029, BR-030, BR-032, BR-033, BR-037, BR-038, BR-041, BR-042, BR-045, BR-046, BR-047, BR-048, BR-049, BR-052 |
 | medium   | 15    | BR-004, BR-005, BR-011, BR-016, BR-017, BR-018, BR-019, BR-020, BR-023, BR-024, BR-028, BR-031, BR-034, BR-050, BR-051                                                         |
 | low      | 2     | BR-021, BR-022                                                                                                                                                                 |
 
-> Note: The hardcoded fallback in ConfigManager.ts is identical to the JSONC file (52 block rules + 10 allow exceptions). The JSONC file is authoritative.
+> Note: The hardcoded fallback in ConfigManager.ts is identical to the JSONC file (53 block rules + 10 allow exceptions). The JSONC file is authoritative.
 
 ## Allow Exceptions (10 rules)
 
 | ID     | Pattern                                 | Description                                                                         |
 | ------ | --------------------------------------- | ----------------------------------------------------------------------------------- |
 | AE-001 | `rm\s+-rf\s+node_modules\s+--force\s*$` | Allow rm node_modules with explicit --force flag (anchored to reject trailing args) |
-| AE-002 | `chmod\s+644`                           | Allow chmod 644 (read/write owner, read others)                                     |
-| AE-003 | `chmod\s+755`                           | Allow chmod 755 (rwxr-xr-x)                                                         |
+| AE-002 | `chmod\s+644(?!\s+-\S*[rR])`                 | Allow chmod 644 (read/write owner, read others; not when combined with -R/--recursive) |
+| AE-003 | `chmod\s+755(?!\s+-\S*[rR])`                 | Allow chmod 755 (rwxr-xr-x; not when combined with -R/--recursive)                     |
 | AE-004 | `cat\s+\.\.\/\.env\.example`            | Allow reading .env.example template files                                           |
 | AE-005 | `openssl\s+version`                     | Allow checking OpenSSL version                                                      |
-| AE-006 | `git\s+push\s+--force-with-lease`       | Allow safe force push with lease                                                    |
+| AE-006 | `git\s+push\s+--force-with-lease\b(?!.*\s--force(?:\s\|$))(?!.*\s-f(?:\s\|$))` | Allow safe force push with lease (reject when a real --force/-f flag is also present) |
 | AE-007 | `systemctl\s+status`                    | Allow checking service status (read-only)                                           |
 | AE-008 | `docker\s+ps`                           | Allow listing running containers (read-only)                                        |
 | AE-009 | `aws\s+iam\s+get-`                      | Allow AWS IAM read operations (get-user, get-role, etc.)                            |

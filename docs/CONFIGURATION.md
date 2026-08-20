@@ -241,7 +241,7 @@ Custom patterns are compiled into regexes and matched against scanned content. W
 
 ## Default Block Rules
 
-The plugin ships with 52 default block rules (BR-001 through BR-052) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/default-block-rules.jsonc` at build time via the `scripts/copy-rules.mjs` script.
+The plugin ships with 53 default block rules (BR-001 through BR-053) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/default-block-rules.jsonc` at build time via the `scripts/copy-rules.mjs` script.
 
 ### Destruction (11 rules)
 
@@ -481,7 +481,7 @@ Exception fields:
     "BR-023",
   ],
 
-  // Custom block rules (merged with 52 default rules)
+  // Custom block rules (merged with 53 default rules)
   "blockRules": [
     {
       "id": "BR-CUSTOM-001",

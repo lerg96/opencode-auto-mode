@@ -38,7 +38,7 @@ src/
 ├── LlmClient.ts                   # OpenAI-compatible client + retry/fallback (callLlmWithFallback)
 ├── config/
 │   ├── ConfigManager.ts           # loads/reloads auto-mode.jsonc, validates, applies defaults
-│   └── default-block-rules.jsonc  # 52 block rules + 10 allow exceptions (authoritative source)
+│   └── default-block-rules.jsonc  # 53 block rules + 10 allow exceptions (authoritative source)
 ├── rules/
 │   ├── PatternMatcher.ts          # regex/substring matching + suspicious-pattern (ReDoS) guard
 │   └── RuleEvaluator.ts           # evaluates blockRules + allowExceptions + trustBoundary
@@ -92,12 +92,12 @@ src/
 - **`plugin.ts` uses `any` heavily** for OpenCode SDK types (the SDK is not typed). Expected.
 - **Config auto-reload**: `plugin.ts` detects config changes via a content SHA-1 signature (not mtime) and reloads on next classification call.
 - **Windows paths**: `plugin.ts` uses `process.env.USERPROFILE || process.env.HOME`.
-- **Default rules fallback**: if `src/config/default-block-rules.jsonc` can't be parsed, `ConfigManager` has a hardcoded fallback (52 block rules + 10 allow exceptions, aligned with the JSONC) in `loadDefaultBlockRules()`/`loadDefaultAllowExceptions()`.
+- **Default rules fallback**: if `src/config/default-block-rules.jsonc` can't be parsed, `ConfigManager` has a hardcoded fallback (53 block rules + 10 allow exceptions, aligned with the JSONC) in `loadDefaultBlockRules()`/`loadDefaultAllowExceptions()`.
 - **NormalizeRules**: `plugin.ts` auto-prefixes patterns with `regex:` when they contain regex metacharacters (`\()|+{}^$`).
 
 ## Documentation
 
 - `docs/CONFIGURATION.md` — full config reference
-- `docs/BUNDLED-RULES.md` — all 52 shipped block rules + 10 allow exceptions
+- `docs/BUNDLED-RULES.md` — all 53 shipped block rules + 10 allow exceptions
 - `docs/SETUP.md` — installation guide
 - `README.md` — feature overview

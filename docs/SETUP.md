@@ -123,7 +123,7 @@ Start OpenCode and check for initialization messages:
 
 ```
 [AutoMode][v1.0.5] PLUGIN INITIALIZED
-[AutoMode][v1.0.5] Config loaded: rules=52 exceptions=10 llm=none
+[AutoMode][v1.0.5] Config loaded: rules=53 exceptions=10 llm=none
 ```
 
 ## Troubleshooting

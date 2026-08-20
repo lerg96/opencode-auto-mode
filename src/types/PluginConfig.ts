@@ -58,8 +58,6 @@ export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   apiKey: '',
 }
 
-export const DEFAULT_FALLBACK_MODEL = 'mistral-large-latest'
-
 export const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
   consecutive: 3,
   total: 20,
