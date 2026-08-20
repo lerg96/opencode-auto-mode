@@ -262,7 +262,7 @@ Writes a JSONL dataset of classifier decisions and user outcomes, intended for f
 Two record types are written per command, both sharing the tool-call `id` (`callID`) so they can be joined:
 
 - **`classification`** — one per processed command, emitted from `tool.execute.before`. Captures the **raw** classifier verdict (`decision` = `allow`/`deny`/`ask`) and the full, un-truncated, redacted `reason`. For LLM denials the `reason` is the LLM's own reasoning. The raw verdict is used even when `denyMode` later surfaces it as an ask.
-- **`outcome`** — one per command, emitted once the final decision is known. `outcome` is `approved` or `denied`, and `reason` is `approved by user`, `denied by user`, or `denied by plugin`.
+- **`outcome`** — **only** when the command was surfaced to the user (an `ask`) and the user made the final call, emitted from `permission.replied`. `outcome` is `approved` or `denied`, and `reason` is `approved by user` or `denied by user`. Auto-decisions by the plugin (auto-allow/auto-deny) do **not** produce an `outcome` record, since there is no user divergence signal to capture — the `classification` record already fully describes them.
 
 If the LLM denied a command but the user later approved it, **both** records are written (classification `deny` + outcome `approved`) under the same `id`, so you can decide during cleanup which label to keep for fine-tuning.
 

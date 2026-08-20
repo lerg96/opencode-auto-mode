@@ -993,10 +993,8 @@ export const opencodeAutoMode = async (
 
           if (result.decision === 'allow') {
             await replyPermission(sessionID, permissionID, 'once')
-            logOutcome(callID, command, 'approved', 'approved by plugin')
           } else if (result.decision === 'deny') {
             await replyPermission(sessionID, permissionID, 'reject')
-            logOutcome(callID, command, 'denied', 'denied by plugin')
           }
         }
 
