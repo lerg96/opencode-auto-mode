@@ -1374,4 +1374,102 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(res.reason).toContain('Secret')
     })
   })
+
+  describe('allow-list: bash tool only (no cross-tool leaks)', () => {
+    const NO_LLM_CONFIG = {
+      ...BASE_CONFIG,
+      llm: { ...BASE_CONFIG.llm, enabled: false },
+    }
+
+    it('only applies bash tool permission patterns to shell commands', async () => {
+      writeConfig(NO_LLM_CONFIG)
+      writeOpenCodeConfigRaw({
+        permission: {
+          edit: { 'src/**': 'allow' },
+          read: { 'README.md': 'allow' },
+          Bash: { 'ls *': 'allow' },
+        },
+      })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      expect(
+        (await M.classifyCommand('ls -la /tmp', 's-bash')).decision
+      ).toBe('allow')
+      const res = await M.classifyCommand('cat src/app.ts', 's-bash')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).not.toContain('allow-list')
+      const res2 = await M.classifyCommand('cat README.md', 's-bash')
+      expect(res2.decision).toBe('ask')
+      expect(res2.reason).not.toContain('allow-list')
+    })
+
+    it('does not allow-list from non-bash tools when no bash rules exist', async () => {
+      writeConfig(NO_LLM_CONFIG)
+      writeOpenCodeConfigRaw({
+        permission: {
+          edit: { 'src/**': 'allow' },
+          external_directory: { '~/x/**': 'allow' },
+        },
+      })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('cat src/app.ts', 's-no-bash')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).not.toContain('allow-list')
+    })
+  })
+
+  describe('excludedAgents are excluded from classification', () => {
+    function mockLLMResponse(text: string): void {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () =>
+          Promise.resolve({ choices: [{ message: { content: text } }] }),
+      } as any)
+    }
+
+    it('asks for commands from an excluded agent even when the LLM would allow', async () => {
+      writeConfig({ ...BASE_CONFIG, excludedAgents: ['research'] })
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({})
+      await hooks.event({
+        event: {
+          type: 'session.created',
+          properties: { info: { id: 'research-s1', agent: 'research' } },
+        },
+      })
+      const res = await M.classifyCommand('git status', 'research-s1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('excluded')
+      expect(global.fetch).not.toHaveBeenCalled()
+    })
+
+    it('still classifies non-excluded agents normally', async () => {
+      writeConfig({ ...BASE_CONFIG, excludedAgents: ['research'] })
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('git status', 'build-s1')
+      expect(res.decision).toBe('allow')
+    })
+
+    it('default excluded agents apply when config omits the field', async () => {
+      writeConfig(BASE_CONFIG)
+      mockLLMResponse('{"allow":true,"reason":"ok"}')
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({})
+      await hooks.event({
+        event: {
+          type: 'session.created',
+          properties: { info: { id: 'explore-s1', agent: 'explore' } },
+        },
+      })
+      const res = await M.classifyCommand('git status', 'explore-s1')
+      expect(res.decision).toBe('ask')
+      expect(res.reason).toContain('excluded')
+    })
+  })
 })
