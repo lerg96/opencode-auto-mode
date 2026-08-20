@@ -189,8 +189,16 @@ function getOpenCodeConfigPath(): string {
 
 function collectAllowPatterns(perm: any, patterns: string[]): void {
   if (!perm || typeof perm !== 'object') return
-  for (const [key, value] of Object.entries(perm)) {
-    if (key === '*') continue
+  for (const [toolName, value] of Object.entries(perm)) {
+    if (toolName === '*') continue
+    // Only `bash` tool permissions apply to shell commands. OpenCode keys the
+    // permission map by tool name (bash, edit, read, webfetch,
+    // external_directory, ...); collecting allow patterns from other tools
+    // would auto-approve bash commands that merely resemble an edit/read/URL
+    // allow pattern the user never granted to bash.
+    if (typeof toolName !== 'string' || toolName.toLowerCase() !== 'bash') {
+      continue
+    }
     if (typeof value === 'object' && value) {
       for (const [pattern, action] of Object.entries(
         value as Record<string, any>
@@ -199,7 +207,7 @@ function collectAllowPatterns(perm: any, patterns: string[]): void {
         if (action === 'allow' || action === true) patterns.push(pattern)
       }
     } else if (value === 'allow' || value === true) {
-      patterns.push(key)
+      patterns.push(toolName)
     }
   }
 }
@@ -367,6 +375,13 @@ function isSecretSensitive(command: string): boolean {
 
 function allowListed(command: string, sessionID: string): boolean {
   return isSimpleCommand(command) && isOpenCodeAllowed(command, sessionID)
+}
+
+function isAgentExcludedForSession(config: any, sessionID: string): boolean {
+  if (!sessionID) return false
+  const agentName = agentBySession.get(sessionID) || 'general'
+  const excluded = config?.excludedAgents
+  return Array.isArray(excluded) && excluded.includes(agentName)
 }
 
 export {
@@ -566,6 +581,16 @@ async function classifyCommand(
 ): Promise<{ decision: string; reason: string }> {
   maybeReloadConfig()
   const config = getConfig()
+
+  if (isAgentExcludedForSession(config, sessionID)) {
+    log(
+      `EXCLUDED AGENT: "${logCmd(command)}" -> asking user (agent excluded from classification)`
+    )
+    return {
+      decision: 'ask',
+      reason: 'Agent excluded from auto-mode classification',
+    }
+  }
 
   if (isSecretSensitive(command)) {
     log(
