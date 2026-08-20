@@ -95,7 +95,7 @@ echo ~/.config/opencode
 }
 ```
 
-> The default LLM endpoint is `http://localhost:18780/v1` (Ollama-compatible). The fallback model `mistral-large-latest` is used automatically on primary model failure.
+> The default LLM endpoint is `http://localhost:18780/v1` (Ollama-compatible). A fallback model is only used if you set `llm.fallbackModel` — no fallback is used by default.
 
 3. See [Configuration Guide](CONFIGURATION.md) for all available options.
 
@@ -107,7 +107,7 @@ echo ~/.config/opencode
 npm run build
 ```
 
-Verify that the `dist/` directory is created with compiled JavaScript files, and `dist/config/default-block-rules.jsonc` exists.
+Verify that the `dist/` directory is created with compiled JavaScript files, and `dist/default-block-rules.jsonc` exists.
 
 2. **Run tests**:
 
@@ -164,8 +164,8 @@ npm test
 
 ### Default block rules not loading
 
-The default block rules are defined in `src/config/default-block-rules.jsonc` and bundled to `dist/config/` at build time via `scripts/copy-rules.mjs`. If they're not loading:
+The default block rules are defined in `src/config/default-block-rules.jsonc` and bundled to `dist/default-block-rules.jsonc` at build time via `scripts/copy-rules.mjs`. If they're not loading:
 
-1. Check that `dist/config/default-block-rules.jsonc` exists after build
+1. Check that `dist/default-block-rules.jsonc` exists after build
 2. Verify the rules file is valid JSONC (no trailing commas, proper comments)
 3. Check console for "Errors parsing default block rules" warning
