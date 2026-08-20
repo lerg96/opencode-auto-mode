@@ -3,7 +3,7 @@
 ## Repo at a glance
 
 - **Package**: `@lerg96/opencode-auto-mode` — an OpenCode plugin for automatic Bash command approval using a two-stage classifier (pattern rules + LLM).
-- **Single library, no monorepo**. Entry: `src/index.ts` → `src/plugin.ts` (main plugin logic, ~800 lines).
+- **Single library, no monorepo**. Entry: `src/index.ts` → `src/plugin.ts` (main plugin logic, ~900 lines).
 - **TS lib ES2022, ESM module** ( `"type": "module"` ), built with `tsup` to `dist/` (CJS + ESM) + `tsc --emitDeclarationOnly`.
 - **TypeScript 7.x** — check `tsconfig.json` before assuming older TS behavior.
 - **Config**: `~/.config/opencode/auto-mode.jsonc` (or `$OPENCODE_CONFIG_DIR/auto-mode.jsonc`). Example at `auto-mode.jsonc.example`. Bundled defaults at `src/config/default-block-rules.jsonc`.
@@ -12,7 +12,7 @@
 ## Commands
 
 ```
-npm run build          # tsup (esm+cjs, clean) + dts only
+npm run build          # tsup (esm+cjs, clean) + copy-rules + dts only
 npm test               # jest --coverage (threshold: 68% br / 75% fn,ln,stmt)
 npm run test:unit      # tests/unit/ only
 npm run test:integration # tests/integration/ only
@@ -54,14 +54,14 @@ src/
 
 **Execution flow in `plugin.ts`** (classifyCommand):
 
-1. Secret guard: if command touches secret paths/keywords (`~/.ssh`, `.env`, `credentials`, `api_keys`, `secrets`, `tokens`, `passwords`) → LLM directly.
+1. Secret guard: if command touches secret paths/keywords (`~/.ssh`, `.env`, `credentials`, `api_keys`, `secrets`, `tokens`, `passwords`) → returns `ask` immediately (bypasses rules and LLM).
 2. Allow-list skip: parse OpenCode permission config for matching allow patterns → skip classifier.
 3. Rule evaluation via `RuleEvaluator.evaluate()`:
    - `critical` → deny, routed through `applyDenyMode` (DenyAndContinueService): `ask-user` → ask, `auto-retry`/`both` → deny with "safer approach" retry, `both` escalates to ask after `escalation.consecutive`
    - `soft` (from `softRules` config) → falls through to LLM
-   - `medium`/`low` → ask user
+   - `high`/`medium`/`low` → ask user
    - `allowed` → allow
-4. Secret file access (non-keyword) → ask user.
+4. File reads: file content is only extracted when the file is safe (trust boundary + credential basename checks); suspicious file content is flagged (logged) for LLM review, and content is redacted/sanitized before reaching the classifier prompt.
 5. LLM classification: builds classifier prompt, POSTs to OpenAI-compatible endpoint, parses JSON response.
 6. LLM error → fallback config (`onTimeout`/`onError`).
 7. `tool.execute.after` → scans bash tool output with `InjectionProtectionService` for prompt injection and logs warnings (never blocks).
@@ -90,7 +90,7 @@ src/
 - **SWC config** in `.swcrc` uses `"module": {"type": "es6"}` — switching to `commonjs` breaks ESM output.
 - **TS `moduleResolution: "bundler"`** — don't switch to `node`/`node16`/`nodenext`.
 - **`plugin.ts` uses `any` heavily** for OpenCode SDK types (the SDK is not typed). Expected.
-- **Config auto-reload**: `plugin.ts` watches mtime of `auto-mode.jsonc` and reloads on next classification call.
+- **Config auto-reload**: `plugin.ts` detects config changes via a content SHA-1 signature (not mtime) and reloads on next classification call.
 - **Windows paths**: `plugin.ts` uses `process.env.USERPROFILE || process.env.HOME`.
 - **Default rules fallback**: if `src/config/default-block-rules.jsonc` can't be parsed, `ConfigManager` has a hardcoded fallback (52 block rules + 10 allow exceptions, aligned with the JSONC) in `loadDefaultBlockRules()`/`loadDefaultAllowExceptions()`.
 - **NormalizeRules**: `plugin.ts` auto-prefixes patterns with `regex:` when they contain regex metacharacters (`\()|+{}^$`).

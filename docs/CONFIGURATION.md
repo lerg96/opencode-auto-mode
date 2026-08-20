@@ -31,7 +31,7 @@ Controls which LLM API is used for classification.
 | `apiKey`        | string                                   | `""`                          | API key (if required by provider)                                                          |
 | `fallbackModel` | string                                   | `""`                          | Secondary model — used on first-model failure (timeout, 5xx, etc.) — empty string disables |
 
-The default endpoint is `http://localhost:18780/v1` (Ollama-compatible chat completions). The fallback model `mistral-large-latest` is used automatically when the primary model times out or returns a retryable HTTP error.
+The default endpoint is `http://localhost:18780/v1` (Ollama-compatible chat completions). A fallback model is only used when `fallbackModel` is explicitly configured — it defaults to `""` (disabled), so no automatic fallback model is used by default.
 
 **Example - Local model**:
 
@@ -241,7 +241,7 @@ Custom patterns are compiled into regexes and matched against scanned content. W
 
 ## Default Block Rules
 
-The plugin ships with 52 default block rules (BR-001 through BR-052) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/config/` at build time via the `scripts/copy-rules.mjs` script.
+The plugin ships with 52 default block rules (BR-001 through BR-052) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/default-block-rules.jsonc` at build time via the `scripts/copy-rules.mjs` script.
 
 ### Destruction (11 rules)
 

@@ -125,7 +125,7 @@ The plugin uses a modular monolith architecture with:
 
 - **Secret Guard**: Runs before all checks; detects secret paths, credentials, Bearer tokens, obfuscated paths — always returns `ask`
 - **ConfigManager**: Loads/reloads config via SHA-1 signature; applies defaults via `structuredClone`
-- **PermissionPreChecker**: Bypasses classifier for explicitly allowed actions (opencode.jsonc permissions)
+- **OpenCode Allow-List**: Bypasses the classifier for explicitly allowed actions (opencode.jsonc permissions, cached in-memory per session)
 - **PatternMatcher**: Regex and substring matching with ReDoS protection and ReDoS-safe exception segment checking
 - **RuleEvaluator**: Trust boundary → allow exceptions → block rules evaluation flow
 - **LlmClient**: Ollama-compatible LLM calls with HTTP error retry (408/429/5xx) and structured `LlmHttpError`/`LlmParseError` exceptions

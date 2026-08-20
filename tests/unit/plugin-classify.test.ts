@@ -443,7 +443,38 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       )
       expect(res.decision).toBe('deny')
       expect(res.reason).toContain('BR-001')
-      expect(res.reason).not.toContain('allow-list')
+    })
+
+    it('allow-list overrides a matched non-critical block rule', async () => {
+      writeConfig({
+        ...BASE_CONFIG,
+        blockRules: [
+          {
+            id: 'BR-HIGH',
+            type: 'pattern',
+            pattern: 'regex:warn-cmd',
+            severity: 'high',
+            description: 'test',
+            enabled: true,
+          },
+        ],
+      })
+      writeOpenCodeConfig({ Bash: { 'warn-cmd *': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('warn-cmd --danger', 's1')
+      expect(res.decision).toBe('allow')
+      expect(res.reason).toContain('allow-list')
+    })
+
+    it('does not allow-list a matched critical block rule', async () => {
+      writeConfig(BASE_CONFIG)
+      writeOpenCodeConfig({ Bash: { 'purge-data *': 'allow' } })
+      const M = await loadPlugin()
+      await M.opencodeAutoMode({})
+      const res = await M.classifyCommand('purge-data --all', 's1')
+      expect(res.decision).toBe('deny')
+      expect(res.reason).toContain('BR-CRITICAL')
     })
 
     it('does not allow-list a command with process substitution', async () => {
@@ -872,6 +903,29 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(replies).toEqual([])
     })
 
+    it('event permission.asked with no command and no stored decision does not reply', async () => {
+      writeConfig(BASE_CONFIG)
+      const replies: string[] = []
+      const client = {
+        postSessionIdPermissionsPermissionId: async ({ body }: any) => {
+          replies.push(body.response)
+        },
+      }
+      const M = await loadPlugin()
+      const hooks: any = await M.opencodeAutoMode({ client } as any)
+      await hooks.event({
+        event: {
+          type: 'permission.asked',
+          properties: {
+            sessionID: 's11',
+            id: 'p11',
+            metadata: {},
+          },
+        },
+      })
+      expect(replies).toEqual([])
+    })
+
     it('event session.created and session.deleted manage state', async () => {
       writeConfig(BASE_CONFIG)
       const M = await loadPlugin()
@@ -1181,6 +1235,39 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
           recursive: true,
           force: true,
         })
+      }
+    })
+  })
+
+  describe('suspicious file content is flagged for LLM review', () => {
+    it('flags suspicious file content in logs and still classifies via LLM', async () => {
+      const suspiciousDir = fs.mkdtempSync(path.join(os.tmpdir(), 'am-susp-'))
+      try {
+        const script = path.join(suspiciousDir, 'script.js')
+        fs.writeFileSync(script, "eval('rm -rf /')")
+        jest.spyOn(global, 'fetch').mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: () =>
+            Promise.resolve({
+              choices: [
+                { message: { content: '{"allow":true,"reason":"ok"}' } },
+              ],
+            }),
+        } as any)
+        writeConfig(BASE_CONFIG)
+        const M = await loadPlugin()
+        await M.opencodeAutoMode({})
+        const res = await M.classifyCommand(`node ${script}`, 's1')
+        expect(res.decision).toBe('allow')
+        const appendMock = fs.promises.appendFile as jest.Mock
+        const logged = appendMock.mock.calls
+          .map((call: any[]) => String(call[1]))
+          .join('\n')
+        expect(logged).toContain('SUSPICIOUS FILE DETECTED')
+      } finally {
+        fs.rmSync(suspiciousDir, { recursive: true, force: true })
       }
     })
   })

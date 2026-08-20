@@ -2,7 +2,7 @@
 
 Machine-readable reference of the 52 default block rules shipped with the OpenCode Auto-Mode Plugin.
 
-These rules are the authoritative source in `src/config/default-block-rules.jsonc`. This file is bundled to `dist/config/` at build time via `scripts/copy-rules.mjs`.
+These rules are the authoritative source in `src/config/default-block-rules.jsonc`. This file is bundled to `dist/default-block-rules.jsonc` at build time via `scripts/copy-rules.mjs`.
 
 ConfigManager.ts (`loadDefaultBlockRules()`) also ships an identical hardcoded fallback for scenarios where the JSONC file is unreadable.
 
@@ -111,7 +111,7 @@ Rules BR-016 through BR-023 are upgraded to severity `soft` at runtime (via `sof
 | medium   | 15    | BR-004, BR-005, BR-011, BR-016, BR-017, BR-018, BR-019, BR-020, BR-023, BR-024, BR-028, BR-031, BR-034, BR-050, BR-051                                                         |
 | low      | 2     | BR-021, BR-022                                                                                                                                                                 |
 
-> Note: Severity counts by category may differ between the JSONC file and the hardcoded fallback in ConfigManager.ts. The JSONC file is authoritative.
+> Note: The hardcoded fallback in ConfigManager.ts is identical to the JSONC file (52 block rules + 10 allow exceptions). The JSONC file is authoritative.
 
 ## Allow Exceptions (10 rules)
 
@@ -130,8 +130,8 @@ Rules BR-016 through BR-023 are upgraded to severity `soft` at runtime (via `sof
 
 ## Source
 
-All rules are defined in `src/config/default-block-rules.jsonc`. They are bundled to `dist/config/` at build time.
+All rules are defined in `src/config/default-block-rules.jsonc`. They are bundled to `dist/default-block-rules.jsonc` at build time.
 
-ConfigManager.ts (`loadDefaultBlockRules()`) also contains a hardcoded fallback array loaded when the JSONC file is unavailable — this fallback contains 30 older rules and is intentionally simpler. The JSONC file is the authoritative source.
+ConfigManager.ts (`loadDefaultBlockRules()`) also contains an identical hardcoded fallback array loaded when the JSONC file is unavailable. The JSONC file is the authoritative source.
 
 All rules have `type: "pattern"`, `enabled: true`, and use regex pattern matching. Allow exceptions have no `category` or `severity` fields.
