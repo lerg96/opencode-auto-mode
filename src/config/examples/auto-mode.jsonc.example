@@ -31,6 +31,13 @@
     "onError": "ask-user"
   },
 
+  // Telemetry / classifier dataset (off by default). Writes a JSONL file of
+  // classifier decisions + user outcomes for fine-tuning a command classifier.
+  "telemetry": {
+    "enabled": false,
+    "path": ""
+  },
+
   // Custom block rules (default rules are loaded automatically)
   "blockRules": [
     // Add custom rules here

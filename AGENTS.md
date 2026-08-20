@@ -43,6 +43,7 @@ src/
 │   ├── PatternMatcher.ts          # regex/substring matching + suspicious-pattern (ReDoS) guard
 │   └── RuleEvaluator.ts           # evaluates blockRules + allowExceptions + trustBoundary
 ├── injection/                     # prompt injection detection (InjectionProbe, InjectionProtectionService)
+├── telemetry/                     # optional JSONL classifier dataset export (TelemetryLogger)
 ├── escalation/                    # denial threshold tracking (EscalationService)
 ├── deny-and-continue/             # auto-retry / ask-user modes (DenyAndContinueService)
 ├── state/                         # session state (SessionState)
@@ -65,6 +66,7 @@ src/
 5. LLM classification: builds classifier prompt, POSTs to OpenAI-compatible endpoint, parses JSON response.
 6. LLM error → fallback config (`onTimeout`/`onError`).
 7. `tool.execute.after` → scans bash tool output with `InjectionProtectionService` for prompt injection and logs warnings (never blocks).
+8. Telemetry (opt-in `telemetry.enabled`): `tool.execute.before` writes a `classification` JSONL record (raw verdict + full reason), and a `outcome` record is written once the final decision is known — for `ask` cases via the `permission.replied` event. Records share the tool `callID` as `id`.
 
 **LLM default**: `DEFAULT_LLM_CONFIG` is `provider: 'anthropic'`, `model: 'claude-sonnet-4-20250514'`, `apiKeysRef: 'opencode-provider-config'`. When no `baseUrl` is configured, calls fall back to `http://localhost:18780/v1` (Ollama-compatible).
 

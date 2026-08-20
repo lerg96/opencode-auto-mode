@@ -36,6 +36,13 @@ export interface InjectionConfig {
   customPatterns?: Array<{ pattern: string; description: string }>
 }
 
+export interface TelemetryConfig {
+  /** Write a JSONL dataset of classifier decisions + user outcomes. Defaults to false. */
+  enabled: boolean
+  /** Absolute path to the JSONL file. Empty string resolves to ~/.config/opencode/auto-mode-telemetry.jsonl */
+  path: string
+}
+
 export interface PluginConfig {
   llm: LLMProviderConfig
   denyMode: DenyMode
@@ -46,6 +53,7 @@ export interface PluginConfig {
   excludedAgents: string[]
   fallback: FallbackConfig
   injection: InjectionConfig
+  telemetry: TelemetryConfig
 }
 
 export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
@@ -96,6 +104,11 @@ export const DEFAULT_INJECTION_CONFIG: InjectionConfig = {
   customPatterns: [],
 }
 
+export const DEFAULT_TELEMETRY_CONFIG: TelemetryConfig = {
+  enabled: false,
+  path: '',
+}
+
 export const DEFAULT_CONFIG: PluginConfig = {
   llm: DEFAULT_LLM_CONFIG,
   denyMode: 'auto-retry',
@@ -106,6 +119,7 @@ export const DEFAULT_CONFIG: PluginConfig = {
   excludedAgents: ['explore', 'research'],
   fallback: DEFAULT_FALLBACK_CONFIG,
   injection: DEFAULT_INJECTION_CONFIG,
+  telemetry: DEFAULT_TELEMETRY_CONFIG,
 }
 
 export function validateRequiredFields(config: unknown): boolean {
@@ -142,6 +156,8 @@ export function applyDefaults(config: unknown): PluginConfig {
   }
   const parsedInjection =
     (parsed.injection as Record<string, unknown> | undefined) || {}
+  const parsedTelemetry =
+    (parsed.telemetry as Record<string, unknown> | undefined) || {}
   return {
     llm: {
       ...DEFAULT_LLM_CONFIG,
@@ -187,6 +203,16 @@ export function applyDefaults(config: unknown): PluginConfig {
             description: string
           }>)
         : [],
+    },
+    telemetry: {
+      enabled:
+        typeof parsedTelemetry.enabled === 'boolean'
+          ? parsedTelemetry.enabled
+          : DEFAULT_TELEMETRY_CONFIG.enabled,
+      path:
+        typeof parsedTelemetry.path === 'string'
+          ? parsedTelemetry.path
+          : DEFAULT_TELEMETRY_CONFIG.path,
     },
   }
 }

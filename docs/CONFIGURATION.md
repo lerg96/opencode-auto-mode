@@ -241,6 +241,41 @@ Controls prompt-injection scanning of Bash tool output. Enabled by default.
 
 Custom patterns are compiled into regexes and matched against scanned content. When a pattern matches, the tool result is flagged for manual review. The pattern is only applied if it compiles to a valid regex and is not rejected by the ReDoS guard.
 
+### Telemetry (Classifier Dataset)
+
+Writes a JSONL dataset of classifier decisions and user outcomes, intended for fine-tuning a small command-classification model. **Disabled by default.**
+
+```jsonc
+{
+  "telemetry": {
+    "enabled": false,
+    "path": "C:\\Users\\you\\.config\\opencode\\auto-mode-telemetry.jsonl",
+  },
+}
+```
+
+| Field     | Type    | Default                                      | Description                                        |
+| --------- | ------- | -------------------------------------------- | -------------------------------------------------- |
+| `enabled` | boolean | `false`                                      | Master switch. Off = no file is written.           |
+| `path`    | string  | `~/.config/opencode/auto-mode-telemetry.jsonl` | Absolute path to the JSONL file. Empty string uses the default. |
+
+Two record types are written per command, both sharing the tool-call `id` (`callID`) so they can be joined:
+
+- **`classification`** — one per processed command, emitted from `tool.execute.before`. Captures the **raw** classifier verdict (`decision` = `allow`/`deny`/`ask`) and the full, un-truncated, redacted `reason`. For LLM denials the `reason` is the LLM's own reasoning. The raw verdict is used even when `denyMode` later surfaces it as an ask.
+- **`outcome`** — one per command, emitted once the final decision is known. `outcome` is `approved` or `denied`, and `reason` is `approved by user`, `denied by user`, or `denied by plugin`.
+
+If the LLM denied a command but the user later approved it, **both** records are written (classification `deny` + outcome `approved`) under the same `id`, so you can decide during cleanup which label to keep for fine-tuning.
+
+```json
+{"type":"classification","id":"call_1","ts":"...","command":"git stash drop","file_path":null,"file_snippet":null,"decision":"deny","reason":"permanently discards staged changes"}
+{"type":"outcome","id":"call_1","ts":"...","command":"git stash drop","outcome":"approved","reason":"approved by user"}
+```
+
+Notes:
+- Only `bash` tool calls are captured (same as classification).
+- `command` and `reason` are secret-redacted; `file_snippet` is truncated to ~1000 chars.
+- Telemetry state re-syncs on config reload (content-SHA detected), so toggling `enabled` takes effect on the next classification.
+
 ## Default Block Rules
 
 The plugin ships with 53 default block rules (BR-001 through BR-053) defined in `src/config/default-block-rules.jsonc`, plus 10 allow exceptions (AE-001 through AE-010). The JSONC file is the authoritative source — it is shipped to `dist/default-block-rules.jsonc` at build time via the `scripts/copy-rules.mjs` script.
@@ -469,6 +504,12 @@ Exception fields:
   "fallback": {
     "onTimeout": "ask-user",
     "onError": "ask-user",
+  },
+
+  // Telemetry / classifier dataset (off by default)
+  "telemetry": {
+    "enabled": false,
+    "path": "",
   },
 
   // Soft rules — these fall through to LLM instead of immediate deny/ask

@@ -11,6 +11,10 @@ import { EscalationService } from './escalation/EscalationService.js'
 import { DenyAndContinueService } from './deny-and-continue/DenyAndContinueService.js'
 import { InjectionProtectionService } from './injection/InjectionProtectionService.js'
 import {
+  TelemetryLogger,
+  sanitizeSnippet,
+} from './telemetry/TelemetryLogger.js'
+import {
   SECRET_ASSIGNMENT_RE,
   SECRET_FLAG_RE,
   BEARER_RE,
@@ -29,8 +33,23 @@ import { version } from '../package.json'
 
 const HOME = process.env.USERPROFILE || process.env.HOME || ''
 const LOG_FILE = path.join(HOME, '.config', 'opencode', 'auto-mode.log')
+const DEFAULT_TELEMETRY_FILE = path.join(
+  HOME,
+  '.config',
+  'opencode',
+  'auto-mode-telemetry.jsonl'
+)
 const MAX_SESSION_TRACKING = 200
 const MAX_AGENT_TRACKING = 200
+
+export interface ClassificationResult {
+  decision: string
+  reason: string
+  rawDecision?: string
+  rawReason?: string
+  filePath?: string | null
+  fileContent?: string | null
+}
 
 function log(msg: string): void {
   const line = `[AutoMode][v${version}][${new Date().toISOString()}] ${msg}\n`
@@ -42,12 +61,18 @@ let ruleEvaluator: RuleEvaluator | null = null
 let injectionProtection: InjectionProtectionService | null = null
 let client: any = null
 let initialized = false
-const decisions = new Map<string, { decision: string; reason: string }>()
+const decisions = new Map<string, ClassificationResult>()
 const agentBySession = new Map<string, string>()
 const sessionStates = new Map<string, SessionState>()
 let opencodeAllowListByAgent: Map<string, { patterns: string[]; at: string }> =
   new Map()
 let configSignature = ''
+let telemetryLogger: TelemetryLogger | null = null
+const permissionToCallID = new Map<
+  string,
+  { callID: string; command: string }
+>()
+const loggedOutcomes = new Set<string>()
 
 interface SessionDenialState {
   consecutive: number
@@ -173,6 +198,7 @@ function maybeReloadConfig(): void {
   configSignature = sig
   const config = configManager.getConfig()
   injectionProtection?.updateConfig(config.injection)
+  syncTelemetryFromConfig(config)
   log(
     `Config reloaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
   )
@@ -348,7 +374,8 @@ function stripVariableExpansion(text: string): string {
   return text.replace(/\$\{[^}]*\}/g, '').replace(/\$[A-Za-z_][\w]*/g, '')
 }
 
-const SECRET_VAR_REF_RE = /(\$|\$\{)[A-Za-z_]*(?:api[_-]?key|secret|token|password|passwd|credential|auth|client[_-]?secret|access[_-]?key)[\w}]*\b/gi
+const SECRET_VAR_REF_RE =
+  /(\$|\$\{)[A-Za-z_]*(?:api[_-]?key|secret|token|password|passwd|credential|auth|client[_-]?secret|access[_-]?key)[\w}]*\b/gi
 
 function logCmd(text: string, length = 80): string {
   return redact(String(text)).slice(0, length)
@@ -361,17 +388,21 @@ function isSecretSensitive(command: string): boolean {
   const forms = [command, deobf, stripped, rawNoVar].filter(
     (v, i, a) => a.indexOf(v) === i
   )
-  const isVarMatch = forms.some((c) => matchesSecretPattern(SECRET_VAR_REF_RE, c))
-  return forms.some(
-    (c) =>
-      matchesSecretPattern(SECRET_FILE_PATTERN, c) ||
-      matchesSecretPattern(SECRET_KEYWORD_PATTERN, c) ||
-      matchesSecretPattern(SECRET_ASSIGNMENT_RE, c) ||
-      matchesSecretPattern(SECRET_FLAG_RE, c) ||
-      matchesSecretPattern(BEARER_RE, c) ||
-      matchesSecretPattern(URL_CRED_RE, c) ||
-      matchesSecretPattern(SECRET_CMD_PATTERN, c)
-  ) || isVarMatch
+  const isVarMatch = forms.some((c) =>
+    matchesSecretPattern(SECRET_VAR_REF_RE, c)
+  )
+  return (
+    forms.some(
+      (c) =>
+        matchesSecretPattern(SECRET_FILE_PATTERN, c) ||
+        matchesSecretPattern(SECRET_KEYWORD_PATTERN, c) ||
+        matchesSecretPattern(SECRET_ASSIGNMENT_RE, c) ||
+        matchesSecretPattern(SECRET_FLAG_RE, c) ||
+        matchesSecretPattern(BEARER_RE, c) ||
+        matchesSecretPattern(URL_CRED_RE, c) ||
+        matchesSecretPattern(SECRET_CMD_PATTERN, c)
+    ) || isVarMatch
+  )
 }
 
 function allowListed(command: string, sessionID: string): boolean {
@@ -492,6 +523,25 @@ function getConfig(): any {
   return configManager ? configManager.getConfig() : {}
 }
 
+function syncTelemetryFromConfig(config: any): void {
+  const telemetry = config?.telemetry || {}
+  const enabled = telemetry.enabled === true
+  const filePath =
+    typeof telemetry.path === 'string' && telemetry.path.length > 0
+      ? telemetry.path
+      : DEFAULT_TELEMETRY_FILE
+  if (enabled) {
+    if (!telemetryLogger) {
+      telemetryLogger = new TelemetryLogger(enabled, filePath)
+    } else {
+      telemetryLogger.updateConfig(enabled, filePath)
+    }
+    log(`Telemetry enabled: writing classifier dataset to ${filePath}`)
+  } else {
+    telemetryLogger = null
+  }
+}
+
 async function callLLMWithFallback(
   model: string,
   fallbackModel: string,
@@ -584,7 +634,7 @@ function parseDecision(text: string): { decision: string; reason: string } {
 async function classifyCommand(
   command: string,
   sessionID: string
-): Promise<{ decision: string; reason: string }> {
+): Promise<ClassificationResult> {
   maybeReloadConfig()
   const config = getConfig()
 
@@ -638,7 +688,14 @@ async function classifyCommand(
     const reason = `Rule ${ruleId} blocked command`
     if (severity === 'critical') {
       log(`RULES deny: "${logCmd(command)}" (${reason})`)
-      return applyDenyMode(command, reason, ruleId, config, sessionID)
+      const denyResult = applyDenyMode(
+        command,
+        reason,
+        ruleId,
+        config,
+        sessionID
+      )
+      return { ...denyResult, rawDecision: 'deny', rawReason: reason }
     }
     if (allowListed(command, sessionID)) {
       log(`ALLOW-LIST skip: "${logCmd(command)}"`)
@@ -713,9 +770,22 @@ async function classifyCommand(
       `LLM classify: "${logCmd(command)}" (file=${filePath || 'none'}) -> ${result.decision} (${redact(result.reason)})`
     )
     if (result.decision === 'deny') {
-      return applyDenyMode(command, result.reason, 'LLM', config, sessionID)
+      const denyResult = applyDenyMode(
+        command,
+        result.reason,
+        'LLM',
+        config,
+        sessionID
+      )
+      return {
+        ...denyResult,
+        rawDecision: result.decision,
+        rawReason: result.reason,
+        filePath,
+        fileContent,
+      }
     }
-    return result
+    return { ...result, filePath, fileContent }
   } catch (e: any) {
     const errMsg = redact(String(e?.message || e))
     log(`LLM classify error: ${errMsg}`)
@@ -772,6 +842,7 @@ export const opencodeAutoMode = async (
     injectionProtection = new InjectionProtectionService()
     const config = configManager.getConfig()
     injectionProtection.updateConfig(config.injection)
+    syncTelemetryFromConfig(config)
     log(
       `Config loaded: rules=${(config.blockRules || []).length} exceptions=${(config.allowExceptions || []).length} llm=${config.llm?.provider || 'none'}`
     )
@@ -798,6 +869,17 @@ export const opencodeAutoMode = async (
           recordApproved(sessionID, command)
         }
         decisions.set(input.callID, result)
+        if (telemetryLogger) {
+          telemetryLogger.logClassification({
+            id: input.callID,
+            ts: new Date().toISOString(),
+            command,
+            file_path: result.filePath ?? null,
+            file_snippet: sanitizeSnippet(result.fileContent),
+            decision: result.rawDecision ?? result.decision,
+            reason: redact(result.rawReason ?? result.reason),
+          })
+        }
         if (decisions.size > 200) {
           const firstKey = decisions.keys().next().value
           if (firstKey) decisions.delete(firstKey)
@@ -881,6 +963,9 @@ export const opencodeAutoMode = async (
 
           if (!result || result.decision === 'ask') {
             log(`permission.asked: asking user (no auto decision)`)
+            if (permissionID && callID && command) {
+              permissionToCallID.set(permissionID, { callID, command })
+            }
             return
           }
 
@@ -899,14 +984,50 @@ export const opencodeAutoMode = async (
             )
             if (escalationService.checkThresholds().escalated) {
               log(`permission.asked: escalation threshold reached, asking user`)
+              if (permissionID && callID && command) {
+                permissionToCallID.set(permissionID, { callID, command })
+              }
               return
             }
           }
 
           if (result.decision === 'allow') {
             await replyPermission(sessionID, permissionID, 'once')
+            logOutcome(callID, command, 'approved', 'approved by plugin')
           } else if (result.decision === 'deny') {
             await replyPermission(sessionID, permissionID, 'reject')
+            logOutcome(callID, command, 'denied', 'denied by plugin')
+          }
+        }
+
+        if (evt.type === 'permission.replied') {
+          const props = evt.properties || {}
+          const permissionID = props.permissionID
+          const response = props.response
+          if (!permissionID) return
+          const entry = permissionToCallID.get(permissionID)
+          if (entry) {
+            permissionToCallID.delete(permissionID)
+            log(
+              `permission.replied: ${permissionID} callID=${entry.callID} response=${response}`
+            )
+            const approved = /allow|once|yes|always/i.test(String(response))
+            const denied = /deny|reject|no|never/i.test(String(response))
+            if (approved) {
+              logOutcome(
+                entry.callID,
+                entry.command,
+                'approved',
+                'approved by user'
+              )
+            } else if (denied) {
+              logOutcome(
+                entry.callID,
+                entry.command,
+                'denied',
+                'denied by user'
+              )
+            }
           }
         }
       } catch (e: any) {
@@ -914,6 +1035,28 @@ export const opencodeAutoMode = async (
       }
     },
   }
+}
+
+function logOutcome(
+  callID: string,
+  command: string,
+  outcome: 'approved' | 'denied',
+  reason: string
+): void {
+  if (!callID || !telemetryLogger) return
+  if (loggedOutcomes.has(callID)) return
+  loggedOutcomes.add(callID)
+  if (loggedOutcomes.size > 1000) {
+    const firstKey = loggedOutcomes.keys().next().value
+    if (firstKey) loggedOutcomes.delete(firstKey)
+  }
+  telemetryLogger.logOutcome({
+    id: callID,
+    ts: new Date().toISOString(),
+    command,
+    outcome,
+    reason,
+  })
 }
 
 export default opencodeAutoMode

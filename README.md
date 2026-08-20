@@ -15,6 +15,7 @@ Automatic command approval for OpenCode, implementing LLM-based two-stage classi
 - **Deny-and-Continue**: Auto-retry, ask-user, or both modes
 - **Prompt Injection Detection**: Zero-width normalization, fenced command wrapping, file content sanitization
 - **Per-Agent Allow-List**: OpenCode permission allow-lists cached per-agent (no cross-agent leakage)
+- **Telemetry Dataset**: Optional JSONL export of classifier decisions + user outcomes (raw LLM verdict + full reason, with shared `id` across classification/approval) for fine-tuning a small command classifier
 - **Extensible Rules**: Add custom block rules and allow exceptions via config
 - **Property-Based Testing**: Mathematical guarantees on pure function behavior
 

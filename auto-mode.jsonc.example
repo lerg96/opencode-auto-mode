@@ -87,6 +87,19 @@
   },
 
   // ============================================================================
+  // Telemetry (Classifier Dataset)
+  // ============================================================================
+  // Writes a JSONL dataset of classifier decisions + user outcomes for
+  // fine-tuning a small command-classification model. Disabled by default.
+  "telemetry": {
+    // Master switch. Off = no file is written (default: false)
+    "enabled": false,
+    // Absolute path to the JSONL file. Empty string uses the default
+    // ~/.config/opencode/auto-mode-telemetry.jsonl
+    "path": ""
+  },
+
+  // ============================================================================
   // Custom Block Rules
   // ============================================================================
   // Add custom block rules that are merged with the 53 default rules.
