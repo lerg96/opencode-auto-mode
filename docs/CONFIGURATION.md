@@ -50,7 +50,7 @@ The default endpoint is `http://localhost:18780/v1` (Ollama-compatible chat comp
 
 ### Deny Mode
 
-Controls what happens when an action is blocked by a **critical-severity** rule. Denials route through `DenyAndContinueService`:
+Controls what happens when an action is **denied by the classifier** — critical block rules, trust-boundary violations, and LLM denials all route through `DenyAndContinueService`:
 
 ```jsonc
 {
@@ -65,6 +65,8 @@ Controls what happens when an action is blocked by a **critical-severity** rule.
 | `"both"`       | Auto-deny until `escalation.consecutive` threshold is reached, then switches to `ask-user`       |
 
 In `both` mode, `DenyAndContinueService` checks `sessionState.getDenialCounters().consecutive` against `escalation.consecutive` (default 3). If the threshold is met or exceeded, the denial escalates to an ask rather than auto-retry.
+
+> **Note**: `denyMode` applies to every classifier deny — critical/high block rules, trust-boundary matches, and `deny` results from the LLM. High/medium/low block rules (which are `ask` by design) and the secret guard (always `ask`) are unaffected. LLM error fallbacks (`fallback.onError`) keep their own explicit behavior and are not routed through `denyMode`.
 
 ### Escalation Thresholds
 

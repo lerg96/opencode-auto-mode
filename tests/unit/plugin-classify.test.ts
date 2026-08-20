@@ -1153,7 +1153,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       })
       const res = await M.classifyCommand('npm test', 'g1')
       expect(res.decision).toBe('deny')
-      expect(res.reason).toBe('x')
+      expect(res.reason).toContain('x')
       expect(res.reason).not.toContain('allow-list')
     })
 
@@ -1182,7 +1182,7 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       } as any)
       const res = await M.classifyCommand('ls -la /tmp', 's1')
       expect(res.decision).toBe('deny')
-      expect(res.reason).toBe('x')
+      expect(res.reason).toContain('x')
       expect(res.reason).not.toContain('allow-list')
     })
   })

@@ -712,6 +712,9 @@ async function classifyCommand(
     log(
       `LLM classify: "${logCmd(command)}" (file=${filePath || 'none'}) -> ${result.decision} (${redact(result.reason)})`
     )
+    if (result.decision === 'deny') {
+      return applyDenyMode(command, result.reason, 'LLM', config, sessionID)
+    }
     return result
   } catch (e: any) {
     const errMsg = redact(String(e?.message || e))

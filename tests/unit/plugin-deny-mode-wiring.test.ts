@@ -92,6 +92,69 @@ describe('denyMode wiring', () => {
 
     expect(res.decision).toBe('ask')
   })
+
+  it('ask-user: LLM deny is surfaced as a user question, not auto-rejected', async () => {
+    writeConfig({ ...BASE, denyMode: 'ask-user' } as any)
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () =>
+        Promise.resolve({
+          choices: [
+            { message: { content: '{"allow":false,"reason":"unsafe"}' } },
+          ],
+        }),
+    } as any)
+    const M = await loadPlugin()
+    await M.opencodeAutoMode({})
+    const res = await M.classifyCommand('random-cmd', 's-llm-ask')
+
+    expect(res.decision).toBe('ask')
+    expect(res.reason).toContain('user confirmation required')
+  })
+
+  it('auto-retry: LLM deny still carries the deny-and-continue retry message', async () => {
+    writeConfig({ ...BASE, denyMode: 'auto-retry' } as any)
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () =>
+        Promise.resolve({
+          choices: [
+            { message: { content: '{"allow":false,"reason":"unsafe"}' } },
+          ],
+        }),
+    } as any)
+    const M = await loadPlugin()
+    await M.opencodeAutoMode({})
+    const res = await M.classifyCommand('random-cmd', 's-llm-retry')
+
+    expect(res.decision).toBe('deny')
+    expect(res.reason).toContain('safer approach')
+  })
+
+  it('both: LLM deny escalates to ask after the consecutive threshold', async () => {
+    writeConfig({ ...BASE, denyMode: 'both' } as any)
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () =>
+        Promise.resolve({
+          choices: [
+            { message: { content: '{"allow":false,"reason":"unsafe"}' } },
+          ],
+        }),
+    } as any)
+    const M = await loadPlugin()
+    await M.opencodeAutoMode({})
+    for (let i = 0; i < 3; i++) M.recordDenied('s-llm-both')
+    const res = await M.classifyCommand('random-cmd', 's-llm-both')
+
+    expect(res.decision).toBe('ask')
+  })
 })
 
 describe('denyMode escalation wiring', () => {
