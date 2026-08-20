@@ -46,10 +46,32 @@ describe('redact — bare secret token/assignment edge cases', () => {
     expect(out).not.toContain('***REDACTED***')
   })
 
-  it('skips shell-metachar-delimited values by design (" is terminator)', () => {
-    // The regex [^\s"';&|`$]+ intentionally stops at shell metachars
-    // so quoted values are safely skipped in log context
+  it('redacts quoted values (JSON-style and --flag "value") to prevent leak', () => {
+    // Previously quoted values were skipped by design; that let JSON configs
+    // ("password":"hunter2") and --password "x" reach the LLM/logs verbatim.
     const out = redact('secret="value with spaces"')
-    expect(out).not.toContain('***REDACTED***')
+    expect(out).toContain('***REDACTED***')
+    expect(out).not.toContain('value with spaces')
+  })
+
+  it('redacts underscore-prefixed credential names (GITHUB_TOKEN=...)', () => {
+    const out = redact('export GITHUB_TOKEN=ghp_1234567890abcdef')
+    expect(out).toContain('GITHUB_TOKEN=***REDACTED***')
+    expect(out).not.toContain('ghp_1234567890abcdef')
+  })
+
+  it('redacts JSON-style quoted credential values', () => {
+    const out = redact('{"api_key": "sk-abcdef123456", "password":"hunter2"}')
+    expect(out).not.toContain('sk-abcdef123456')
+    expect(out).not.toContain('hunter2')
+    expect(out).toContain('***REDACTED***')
+  })
+
+  it('redacts non-http connection strings (postgres://, jdbc:mysql://)', () => {
+    const out = redact('psql "postgres://appuser:s3cr3t@db:5432/app"')
+    expect(out).not.toContain('appuser:s3cr3t@')
+    expect(out).toContain('postgres://***REDACTED***@db')
+    const jdbc = redact('jdbc:mysql://root:passwd@db:3306/schema')
+    expect(jdbc).not.toContain('root:passwd@')
   })
 })
