@@ -8,6 +8,9 @@
     "provider": "anthropic",
     "model": "claude-sonnet-4-20250514",
     "timeout": 5000,
+    // Maximum tokens for the classifier response (1-8192). Default: 200.
+    // Increase this if the model is truncating its JSON response.
+    "maxTokens": 200
     // Optional: Base URL for custom OpenAI-compatible endpoints (e.g., local models)
     // "baseUrl": "http://localhost:1234/v1",
     // Fallback model: If the primary model fails (5xx, 429 rate limit, timeout),

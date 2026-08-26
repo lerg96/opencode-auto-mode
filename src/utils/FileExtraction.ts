@@ -246,6 +246,7 @@ export function isSafeFile(
   try {
     if (!fs.existsSync(filepath)) return true
     if (fs.statSync(filepath).isDirectory()) return false
+    if (!isWithinTrustBoundary(filepath, trustBoundary)) return false
     const resolved = fs.realpathSync(filepath)
     if (!isWithinTrustBoundary(resolved, trustBoundary)) return false
 
@@ -283,11 +284,17 @@ function isWithinTrustBoundary(
     if (typeof p !== 'string' || p.length === 0) continue
     const expanded = expandHome(p)
     if (expanded.length === 0) continue
-    const norm = path.resolve(expanded).toLowerCase()
-    if (norm.endsWith('/') || norm.endsWith('\\') || norm.endsWith(sep)) {
-      if (normalized.startsWith(norm)) return false
-    } else if (normalized === norm || normalized.startsWith(norm + sep)) {
-      return false
+    const isDirectoryPath = /[\\/]+$/.test(expanded)
+    const protectedPaths = [path.resolve(expanded).toLowerCase()]
+    try {
+      protectedPaths.push(fs.realpathSync(expanded).toLowerCase())
+    } catch {}
+    for (const norm of protectedPaths) {
+      if (isDirectoryPath) {
+        if (normalized.startsWith(norm)) return false
+      } else if (normalized === norm || normalized.startsWith(norm + sep)) {
+        return false
+      }
     }
   }
 

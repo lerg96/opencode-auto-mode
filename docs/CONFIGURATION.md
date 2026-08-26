@@ -18,6 +18,7 @@ Controls which LLM API is used for classification.
     "provider": "anthropic",
     "model": "claude-sonnet-4-20250514",
     "timeout": 5000,
+    "maxTokens": 200,
   },
 }
 ```
@@ -27,6 +28,7 @@ Controls which LLM API is used for classification.
 | `provider`      | `"anthropic"` \| `"openai"` \| `"local"` | `"anthropic"`                 | LLM provider name (informational)                                                          |
 | `model`         | string                                   | `"claude-sonnet-4-20250514"`  | Model name for classification                                                              |
 | `timeout`       | number                                   | `5000`                        | API request timeout in milliseconds                                                        |
+| `maxTokens`     | number                                   | `200`                         | Maximum response tokens (finite integer from 1 to 8192)                                    |
 | `baseUrl`       | string                                   | `"http://localhost:18780/v1"` | Ollama-compatible API base URL                                                             |
 | `apiKey`        | string                                   | `""`                          | API key (if required by provider)                                                          |
 | `fallbackModel` | string                                   | `""`                          | Secondary model — used on first-model failure (timeout, 5xx, etc.) — empty string disables |
@@ -232,12 +234,12 @@ Controls prompt-injection scanning of Bash tool output. Enabled by default.
 }
 ```
 
-| Field               | Type                                                          | Default | Description                                                    |
-| ------------------- | ------------------------------------------------------------- | ------- | -------------------------------------------------------------- |
-| `enabled`           | boolean                                                       | `true`  | Master switch for all injection scanning                       |
-| `scanToolResults`   | boolean                                                       | `true`  | Scan Bash tool output for injection patterns                   |
-| `scanUserMessages`  | boolean                                                       | `false` | Reserved. Not wired to any OpenCode hook (no user-message hook exists), so it has no effect. Kept for backward compatibility. |
-| `customPatterns`    | `Array<{ pattern: string; description: string }>`             | `[]`    | Extra patterns (matched case-insensitively) to flag for review |
+| Field              | Type                                              | Default | Description                                                                                                                   |
+| ------------------ | ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`          | boolean                                           | `true`  | Master switch for all injection scanning                                                                                      |
+| `scanToolResults`  | boolean                                           | `true`  | Scan Bash tool output for injection patterns                                                                                  |
+| `scanUserMessages` | boolean                                           | `false` | Reserved. Not wired to any OpenCode hook (no user-message hook exists), so it has no effect. Kept for backward compatibility. |
+| `customPatterns`   | `Array<{ pattern: string; description: string }>` | `[]`    | Extra patterns (matched case-insensitively) to flag for review                                                                |
 
 Custom patterns are compiled into regexes and matched against scanned content. When a pattern matches, the tool result is flagged for manual review. The pattern is only applied if it compiles to a valid regex and is not rejected by the ReDoS guard.
 
@@ -254,9 +256,9 @@ Writes a JSONL dataset of classifier decisions and user outcomes, intended for f
 }
 ```
 
-| Field     | Type    | Default                                      | Description                                        |
-| --------- | ------- | -------------------------------------------- | -------------------------------------------------- |
-| `enabled` | boolean | `false`                                      | Master switch. Off = no file is written.           |
+| Field     | Type    | Default                                        | Description                                                     |
+| --------- | ------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| `enabled` | boolean | `false`                                        | Master switch. Off = no file is written.                        |
 | `path`    | string  | `~/.config/opencode/auto-mode-telemetry.jsonl` | Absolute path to the JSONL file. Empty string uses the default. |
 
 Two record types are written per command, both sharing the tool-call `id` (`callID`) so they can be joined:
@@ -272,6 +274,7 @@ If the LLM denied a command but the user later approved it, **both** records are
 ```
 
 Notes:
+
 - Only `bash` tool calls are captured (same as classification).
 - `command` and `reason` are secret-redacted; `file_snippet` is truncated to ~1000 chars.
 - Telemetry state re-syncs on config reload (content-SHA detected), so toggling `enabled` takes effect on the next classification.
@@ -340,21 +343,21 @@ Rules BR-016 through BR-023 are upgraded to severity `soft`, falling through to 
 
 ### Network & Database (6 rules)
 
-| Rule ID | Pattern                          | Description                  | Severity                         |
-| ------- | -------------------------------- | ---------------------------- | -------------------------------- |
-| BR-032  | `iptables`                       | Firewall modification        | high                             |
-| BR-033  | `ufw`                            | Ubuntu firewall modification | high                             |
-| BR-034  | `nmap`                           | Network port scanning        | medium                           |
-| BR-035  | `DROP\s+TABLE`                   | Database table destruction   | critical                         |
-| BR-036  | `DELETE\s+FROM\b(?!.+\bWHERE\b)` | DELETE without WHERE clause  | critical                         |
-| BR-037  | `TRUNCATE\s+`                    | Database table truncation    | high                             |
+| Rule ID | Pattern                          | Description                  | Severity |
+| ------- | -------------------------------- | ---------------------------- | -------- |
+| BR-032  | `iptables`                       | Firewall modification        | high     |
+| BR-033  | `ufw`                            | Ubuntu firewall modification | high     |
+| BR-034  | `nmap`                           | Network port scanning        | medium   |
+| BR-035  | `DROP\s+TABLE`                   | Database table destruction   | critical |
+| BR-036  | `DELETE\s+FROM\b(?!.+\bWHERE\b)` | DELETE without WHERE clause  | critical |
+| BR-037  | `TRUNCATE\s+`                    | Database table truncation    | high     |
 
 ### Version Control (2 rules)
 
-| Rule ID | Pattern                                                          | Description                        | Severity |
-| ------- | ---------------------------------------------------------------- | ---------------------------------- | -------- |
-| BR-024  | `git\s+reset\s+(--hard\|--soft)`                                 | Git reset (potential history loss) | medium   |
-| BR-038  | `git\s+push\s+(?:-f\b\|--force\b)\|git\s+push\s+.*\s--force\b`   | Git force push (history rewrite)   | high     |
+| Rule ID | Pattern                                                        | Description                        | Severity |
+| ------- | -------------------------------------------------------------- | ---------------------------------- | -------- |
+| BR-024  | `git\s+reset\s+(--hard\|--soft)`                               | Git reset (potential history loss) | medium   |
+| BR-038  | `git\s+push\s+(?:-f\b\|--force\b)\|git\s+push\s+.*\s--force\b` | Git force push (history rewrite)   | high     |
 
 ### Cloud (3 rules)
 

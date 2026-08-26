@@ -117,6 +117,134 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       expect(res.decision).toBe('allow')
       expect(res.reason.length).toBe(200)
     })
+
+    it('rejects whitespace-only input', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('   \n\t  ')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects partial JSON (unterminated object)', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('{"allow":true,"reason":"')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects unterminated code fence', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('```json\n{"allow":true}')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects prose before bare JSON', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('Here is the decision: {"allow":true}')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects prose after bare JSON', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('{"allow":true} That is my decision.')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects prose before fenced JSON', async () => {
+      const M = await loadPlugin()
+      expect(
+        M.parseDecision('Here is the decision:\n```json\n{"allow":true}\n```')
+      ).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects prose after fenced JSON', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('```json\n{"allow":true}\n```\nDone!')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects multiple code fences', async () => {
+      const M = await loadPlugin()
+      expect(
+        M.parseDecision(
+          '```json\n{"allow":true}\n```\n```json\n{"allow":false}\n```'
+        )
+      ).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects JSON array (non-object)', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('[1, 2, 3]')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects JSON null', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('null')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects JSON primitive (boolean)', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('true')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects object missing allow field', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('{"reason":"test"}')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('rejects non-boolean allow (string)', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('{"allow":"yes"}')).toEqual({
+        decision: 'ask',
+        reason: 'Unparseable LLM response',
+      })
+    })
+
+    it('parses valid fenced JSON with reason', async () => {
+      const M = await loadPlugin()
+      expect(
+        M.parseDecision('```json\n{"allow":false,"reason":"dangerous"}\n```')
+      ).toEqual({
+        decision: 'deny',
+        reason: 'dangerous',
+      })
+    })
+
+    it('parses valid fenced JSON with whitespace outside fence', async () => {
+      const M = await loadPlugin()
+      expect(M.parseDecision('  ```json\n{"allow":true}\n```  \n')).toEqual({
+        decision: 'allow',
+        reason: '',
+      })
+    })
   })
 
   describe('redact / logCmd', () => {
@@ -1484,9 +1612,9 @@ describe('plugin.ts internals — classifyCommand pipeline', () => {
       })
       const M = await loadPlugin()
       await M.opencodeAutoMode({})
-      expect(
-        (await M.classifyCommand('ls -la /tmp', 's-bash')).decision
-      ).toBe('allow')
+      expect((await M.classifyCommand('ls -la /tmp', 's-bash')).decision).toBe(
+        'allow'
+      )
       const res = await M.classifyCommand('cat src/app.ts', 's-bash')
       expect(res.decision).toBe('ask')
       expect(res.reason).not.toContain('allow-list')
