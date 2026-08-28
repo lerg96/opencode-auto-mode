@@ -1,4 +1,8 @@
-import { callLlmWithFallback, LlmHttpError, LlmParseError } from '../../../src/LlmClient'
+import {
+  callLlmWithFallback,
+  LlmHttpError,
+  LlmParseError,
+} from '../../../src/LlmClient'
 
 describe('LlmClient — HTTP errors with typed errors', () => {
   describe('LlmHttpError', () => {
@@ -9,7 +13,9 @@ describe('LlmClient — HTTP errors with typed errors', () => {
     })
 
     it('should be instance of Error', () => {
-      expect(new LlmHttpError(500, 'Internal Error') instanceof Error).toBe(true)
+      expect(new LlmHttpError(500, 'Internal Error') instanceof Error).toBe(
+        true
+      )
     })
   })
 
@@ -33,7 +39,11 @@ describe('LlmClient — HTTP errors with typed errors', () => {
       let fetchCalled = 0
       const mockFetch = jest.fn().mockImplementation(async () => {
         fetchCalled++
-        return { ok: false, status: 429, statusText: 'Too Many Requests' } as Response
+        return {
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+        } as Response
       })
 
       await expect(
@@ -55,7 +65,11 @@ describe('LlmClient — HTTP errors with typed errors', () => {
       let fetchCalled = 0
       const mockFetch = jest.fn().mockImplementation(async () => {
         fetchCalled++
-        return { ok: false, status: 500, statusText: 'Internal Server Error' } as Response
+        return {
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+        } as Response
       })
 
       await expect(
@@ -76,7 +90,11 @@ describe('LlmClient — HTTP errors with typed errors', () => {
       let fetchCalled = 0
       const mockFetch = jest.fn().mockImplementation(async () => {
         fetchCalled++
-        return { ok: false, status: 503, statusText: 'Service Unavailable' } as Response
+        return {
+          ok: false,
+          status: 503,
+          statusText: 'Service Unavailable',
+        } as Response
       })
 
       await expect(
@@ -121,7 +139,11 @@ describe('LlmClient — HTTP errors with typed errors', () => {
       let fetchCalled = 0
       const mockFetch = jest.fn().mockImplementation(async () => {
         fetchCalled++
-        return { ok: false, status: 401, statusText: 'Unauthorized' } as Response
+        return {
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+        } as Response
       })
 
       await expect(
@@ -177,6 +199,57 @@ describe('LlmClient — HTTP errors with typed errors', () => {
         fetchImpl: mockFetch as any,
       })
       expect(result.content).toBe('')
+    })
+  })
+
+  describe('maxTokens propagation', () => {
+    it('should pass maxTokens as max_tokens in the request body', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: '{"allow":true}' } }],
+          }),
+      } as unknown as Response)
+
+      await callLlmWithFallback({
+        baseUrl: 'http://test.local',
+        model: 'm1',
+        fallbackModel: '',
+        prompt: 'test',
+        apiKey: '',
+        maxTokens: 300,
+        fetchImpl: mockFetch as any,
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const callArgs = mockFetch.mock.calls[0]
+      const body = JSON.parse(callArgs[1].body)
+      expect(body.max_tokens).toBe(300)
+    })
+
+    it('should default max_tokens to 200 when not specified', async () => {
+      const mockFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: '{"allow":true}' } }],
+          }),
+      } as unknown as Response)
+
+      await callLlmWithFallback({
+        baseUrl: 'http://test.local',
+        model: 'm1',
+        fallbackModel: '',
+        prompt: 'test',
+        apiKey: '',
+        fetchImpl: mockFetch as any,
+      })
+
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+      const callArgs = mockFetch.mock.calls[0]
+      const body = JSON.parse(callArgs[1].body)
+      expect(body.max_tokens).toBe(200)
     })
   })
 })

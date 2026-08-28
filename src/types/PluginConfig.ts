@@ -7,6 +7,8 @@ export interface LLMProviderConfig {
   model: string
   /** Timeout in milliseconds for LLM API calls. Use -1 for no timeout (infinite). */
   timeout: number
+  /** Maximum number of tokens to generate in the LLM response. Defaults to 200. Must be a finite integer between 1 and 8192. */
+  maxTokens: number
   apiKeysRef: 'opencode-provider-config'
   /** Model name to use when the primary model fails (5xx, rate limit, timeout). Empty string or undefined disables fallback. */
   fallbackModel?: string
@@ -60,6 +62,7 @@ export const DEFAULT_LLM_CONFIG: LLMProviderConfig = {
   provider: 'anthropic',
   model: 'claude-sonnet-4-20250514',
   timeout: 5000, // -1 for no timeout (infinite)
+  maxTokens: 200,
   apiKeysRef: 'opencode-provider-config',
   fallbackModel: '',
   baseUrl: '',

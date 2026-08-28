@@ -78,9 +78,11 @@ function loadDefaultBlockRules(): BlockRule[] {
     {
       id: 'BR-001',
       type: 'pattern',
-      pattern: 'rm\\s+-{1,2}[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|rm\\s+-{1,2}[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*',
+      pattern:
+        'rm\\s+-{1,2}[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*|rm\\s+-{1,2}[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*',
       category: 'destruction',
-      description: 'Recursive force deletion (incl. -fr, -Rf, no-space variants)',
+      description:
+        'Recursive force deletion (incl. -fr, -Rf, no-space variants)',
       severity: 'critical',
       enabled: true,
     },
@@ -348,9 +350,11 @@ function loadDefaultBlockRules(): BlockRule[] {
     {
       id: 'BR-038',
       type: 'pattern',
-      pattern: 'git\\s+push\\s+(?:-f\\b|--force\\b)|git\\s+push\\s+.*\\s--force\\b|git\\s+push\\s+.*\\s-f\\b',
+      pattern:
+        'git\\s+push\\s+(?:-f\\b|--force\\b)|git\\s+push\\s+.*\\s--force\\b|git\\s+push\\s+.*\\s-f\\b',
       category: 'version-control',
-      description: 'Git force push (history rewrite, incl. -f and -u ... --force and trailing -f)',
+      description:
+        'Git force push (history rewrite, incl. -f and -u ... --force and trailing -f)',
       severity: 'high',
       enabled: true,
     },
@@ -422,14 +426,16 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: 'rm\\s+-{1,2}[a-zA-Z]*r[a-zA-Z]*\\s+[/.]\\s*(?:$|#|[;&|)])',
       category: 'destruction',
-      description: 'Recursive deletion of root or current directory (not fooled by trailing &&, ;, |, # comment)',
+      description:
+        'Recursive deletion of root or current directory (not fooled by trailing &&, ;, |, # comment)',
       severity: 'critical',
       enabled: true,
     },
     {
       id: 'BR-040',
       type: 'pattern',
-      pattern: 'rm\\s+--recursive\\b[^;|]*--force\\b|rm\\s+--force\\b[^;|]*--recursive\\b',
+      pattern:
+        'rm\\s+--recursive\\b[^;|]*--force\\b|rm\\s+--force\\b[^;|]*--recursive\\b',
       category: 'destruction',
       description: 'Long-form recursive force deletion',
       severity: 'critical',
@@ -440,7 +446,8 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: 'xargs\\s+[^;&|\\n]*\\brm\\s+',
       category: 'destruction',
-      description: 'Deletion via xargs (incl. xargs with option flags before rm)',
+      description:
+        'Deletion via xargs (incl. xargs with option flags before rm)',
       severity: 'high',
       enabled: true,
     },
@@ -449,7 +456,8 @@ function loadDefaultBlockRules(): BlockRule[] {
       type: 'pattern',
       pattern: 'find\\s+.*(?:-delete\\b|-exec\\S*\\s+.*\\brm\\s+)',
       category: 'destruction',
-      description: 'Recursive deletion via find -delete or find -exec/-execdir rm',
+      description:
+        'Recursive deletion via find -delete or find -exec/-execdir rm',
       severity: 'high',
       enabled: true,
     },
@@ -546,9 +554,11 @@ function loadDefaultBlockRules(): BlockRule[] {
     {
       id: 'BR-053',
       type: 'pattern',
-      pattern: '\\brm\\b(?=(?:[^;&]*[\\s;&]|^)(?:-[rR]|--recursive)\\b)(?=(?:[^;&]*[\\s;&]|^)(?:-[fF]|--force)\\b)',
+      pattern:
+        '\\brm\\b(?=(?:[^;&]*[\\s;&]|^)(?:-[rR]|--recursive)\\b)(?=(?:[^;&]*[\\s;&]|^)(?:-[fF]|--force)\\b)',
       category: 'destruction',
-      description: 'rm with separated recursive (-r/-R/--recursive) and force (-f/--force) flags',
+      description:
+        'rm with separated recursive (-r/-R/--recursive) and force (-f/--force) flags',
       severity: 'critical',
       enabled: true,
     },
@@ -596,21 +606,24 @@ function loadDefaultAllowExceptions(): AllowException[] {
       id: 'AE-001',
       type: 'pattern',
       pattern: 'rm\\s+-rf\\s+node_modules\\s+--force\\s*$',
-      description: 'Allow rm node_modules with explicit --force flag (anchored to reject trailing args)',
+      description:
+        'Allow rm node_modules with explicit --force flag (anchored to reject trailing args)',
       enabled: true,
     },
     {
       id: 'AE-002',
       type: 'pattern',
       pattern: 'chmod\\s+644(?!\\s+-\\S*[rR])',
-      description: 'Allow chmod 644 (read/write owner, read others; not when combined with -R/--recursive)',
+      description:
+        'Allow chmod 644 (read/write owner, read others; not when combined with -R/--recursive)',
       enabled: true,
     },
     {
       id: 'AE-003',
       type: 'pattern',
       pattern: 'chmod\\s+755(?!\\s+-\\S*[rR])',
-      description: 'Allow chmod 755 (rwxr-xr-x; not when combined with -R/--recursive)',
+      description:
+        'Allow chmod 755 (rwxr-xr-x; not when combined with -R/--recursive)',
       enabled: true,
     },
     {
@@ -630,8 +643,10 @@ function loadDefaultAllowExceptions(): AllowException[] {
     {
       id: 'AE-006',
       type: 'pattern',
-      pattern: 'git\\s+push\\s+--force-with-lease\\b(?!.*\\s--force(?:\\s|$))(?!.*\\s-f(?:\\s|$))',
-      description: 'Allow safe force push with lease (reject when a real --force/-f flag is also present)',
+      pattern:
+        'git\\s+push\\s+--force-with-lease\\b(?!.*\\s--force(?:\\s|$))(?!.*\\s-f(?:\\s|$))',
+      description:
+        'Allow safe force push with lease (reject when a real --force/-f flag is also present)',
       enabled: true,
     },
     {
@@ -719,7 +734,7 @@ export class ConfigManager {
           `JSONC parse errors: ${errorMessages.join(', ')}, using defaults`
         )
         this.rawLlmConfig = undefined
-          const defaultConfig = structuredClone(DEFAULT_CONFIG)
+        const defaultConfig = structuredClone(DEFAULT_CONFIG)
         const defaultRules = loadDefaultBlockRules()
         const defaultExceptions = loadDefaultAllowExceptions()
         defaultConfig.blockRules = defaultRules
@@ -852,6 +867,20 @@ export class ConfigManager {
       (llm.timeout <= 0 && llm.timeout !== -1)
     ) {
       errors.push('llm.timeout: must be a positive number or -1 for no timeout')
+    }
+
+    if (llm.maxTokens !== undefined) {
+      if (
+        typeof llm.maxTokens !== 'number' ||
+        !Number.isFinite(llm.maxTokens) ||
+        !Number.isInteger(llm.maxTokens) ||
+        llm.maxTokens < 1 ||
+        llm.maxTokens > 8192
+      ) {
+        errors.push(
+          'llm.maxTokens: must be a finite integer between 1 and 8192'
+        )
+      }
     }
 
     const validDenyModes = ['auto-retry', 'ask-user', 'both']

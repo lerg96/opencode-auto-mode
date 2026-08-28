@@ -561,6 +561,7 @@ async function callLLMWithFallback(
     prompt,
     systemPrompt,
     timeoutMs,
+    maxTokens: llm.maxTokens,
   })
   if (result.usedFallback) {
     log(`LLM fallback: ${fallbackModel} (reason: ${result.fallbackError})`)
@@ -591,6 +592,7 @@ async function callLLM(prompt: string, systemPrompt?: string): Promise<string> {
       prompt,
       systemPrompt,
       timeoutMs: llm.timeout || 8000,
+      maxTokens: llm.maxTokens,
     })
     return result.content
   }
@@ -611,24 +613,59 @@ function callLLMSerialized(
 }
 
 function parseDecision(text: string): { decision: string; reason: string } {
-  try {
-    // Strip all code fence patterns: ```json ... ```, ```python ... ```, ``` ... ```
-    const cleaned = text.replace(/```\w*\s*([\s\S]*?)\s*```/g, '$1').trim()
-    const json = JSON.parse(cleaned)
-    if (typeof json.allow === 'boolean') {
-      return {
-        decision: json.allow ? 'allow' : 'deny',
-        reason: String(json.reason || '').slice(0, 200),
-      }
-    }
-  } catch {
+  const fail = (): { decision: string; reason: string } => {
     log(
       `Parse failed, raw: ${redact(String(text))
         .slice(0, 300)
         .replace(/\n/g, '\\n')}`
     )
+    return { decision: 'ask', reason: 'Unparseable LLM response' }
   }
-  return { decision: 'ask', reason: 'Unparseable LLM response' }
+
+  if (typeof text !== 'string' || text.trim().length === 0) {
+    return fail()
+  }
+
+  // Count fence markers — exactly 0 (bare JSON) or 2 (one complete fence) are valid
+  const fenceMarkers = (text.match(/```/g) || []).length
+  let jsonStr: string
+
+  if (fenceMarkers === 0) {
+    // Bare JSON — the entire trimmed string must be the JSON object
+    jsonStr = text.trim()
+  } else if (fenceMarkers === 2) {
+    // Exactly one complete fence pair — only whitespace may appear outside
+    const fenceMatch = text.match(/^\s*```\w*\s*([\s\S]*?)\s*```\s*$/)
+    if (!fenceMatch) {
+      return fail()
+    }
+    jsonStr = fenceMatch[1].trim()
+  } else {
+    // 1 (unterminated fence) or >2 (multiple fences / stray markers) — reject
+    return fail()
+  }
+
+  let json: unknown
+  try {
+    json = JSON.parse(jsonStr)
+  } catch {
+    return fail()
+  }
+
+  // Require a non-null, non-array object with a boolean `allow` field
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    return fail()
+  }
+
+  const obj = json as Record<string, unknown>
+  if (typeof obj.allow !== 'boolean') {
+    return fail()
+  }
+
+  return {
+    decision: obj.allow ? 'allow' : 'deny',
+    reason: String(obj.reason || '').slice(0, 200),
+  }
 }
 
 async function classifyCommand(
